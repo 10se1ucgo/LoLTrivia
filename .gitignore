@@ -1,0 +1,13 @@
+# Python 3 byte code stuff
+__pycache__/
+
+# PyCharm
+.idea/
+
+# Misc
+util/
+data/*/
+!data/README
+!data/quotes.example.json
+!data/skins.example.json
+config.json

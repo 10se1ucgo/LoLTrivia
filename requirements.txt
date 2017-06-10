@@ -1,0 +1,4 @@
+discord.py
+cassiopeia
+html2text
+fuzzywuzzy

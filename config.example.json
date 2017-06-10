@@ -1,0 +1,21 @@
+{
+  "bot":{
+    "discord_token": "token",
+    "owner_id": "id"
+  },
+  "plugins.lol": {
+    "api_region": "NA",
+    "api_key": "RGAPI-00000000-0000-0000-0000-000000000000",
+    "trivia": {
+      "cd": 5,
+      "max_games": 15,
+      "game_length": 15,
+      "points": 15,
+      "allowed_modes": ["CLASSIC", "ARAM", "KINGPORO"],
+      "allowed_maps": ["SUMMONERS_RIFT", "HOWLING_ABYSS"]
+    }
+  },
+  "plugins.debug": {
+    "enabled": false
+  }
+}
