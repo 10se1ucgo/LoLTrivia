@@ -91,8 +91,8 @@ class Question(object):
         points = config['trivia']['points']
         await client.send_message(message.channel,
                                   f"Correct answer '{self.a}'{self.extra} by {message.author.mention}! +{points} points"
-                                  f" (new score: {score() + points}")
-        return config["trivia"]["points"]
+                                  f" (new score: {score() + points})")
+        return points
 
     def __bool__(self):
         return not self.answered
