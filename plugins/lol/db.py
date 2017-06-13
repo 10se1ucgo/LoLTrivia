@@ -20,7 +20,7 @@ class TriviaDB(object):
         Returns:
             Optional[int]: Score (int) if user exists, None otherwise.
         """
-        self.db.execute("SELECT score FROM players WHERE discord_id=?;", (discord_id,)).fetchone()
+        self.db.execute("SELECT score FROM players WHERE discord_id=?;", (discord_id,))
         user: Tuple[int] = self.db.fetchone()
         return user[0] if user else None
 

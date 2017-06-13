@@ -75,9 +75,9 @@ class LoLTrivia(object):
         self.questions[ctx.message.channel].pop(running, None)
 
         for q, task in list(self.questions[ctx.message.channel].items()):
+            self.questions[ctx.message.channel].pop(q, None)
             if not q: continue
             task.cancel()
-            self.questions[ctx.message.channel].pop(q, None)
 
     @trivia.command(pass_context=True)
     async def info(self, ctx: commands.Context, arg1: str, arg2: str=""):
@@ -135,38 +135,41 @@ class LoLTrivia(object):
         """
         return await self.info_cmd(ctx, mastery, "", InfoType.MASTERY)
 
-    async def info_cmd(self, ctx: commands.Context, arg1: str, arg2: str, inftype: InfoType = InfoType.ANY):
-        # still kinda messy.
+    async def info_cmd(self, ctx: commands.Context, arg1: str, arg2: str, inftype: InfoType=InfoType.ANY):
+        # messy and often slow but im too lazy to fix
         if self.questions[ctx.message.channel]:
             return
 
         start: float = time.time()
         embed: discord.Embed = None
 
-        items = [util.get_champion_by_name(arg1),
-                 util.get_item(arg1),
-                 util.get_skin_by_name(arg1),
-                 util.get_by_name(arg1, riotapi.get_summoner_spells()),
-                 util.get_by_name(arg1, riotapi.get_runes()),
-                 util.get_by_name(arg1, riotapi.get_masteries())]
-        champ, item, skin, summ, rune, mastery = [x[0] for x in items]
+        items: Dict[str, Tuple[Any, int]] = {
+            "champ": util.get_champion_by_name(arg1),
+            "item": util.get_item(arg1),
+            "skin": util.get_skin_by_name(arg1),
+            "summ": util.get_by_name(arg1, riotapi.get_summoner_spells()),
+            "rune": util.get_by_name(arg1, riotapi.get_runes()),
+            "mastery": util.get_by_name(arg1, riotapi.get_masteries())
+        }
 
         if inftype == InfoType.ANY:
             # if any, try to pick the best match
-            inftype = InfoType(type(max(items, key=operator.itemgetter(1))[0]))
+            inftype = InfoType(type(max(items.items(), key=operator.itemgetter(1))[0]))
 
-        if champ and inftype == InfoType.CHAMPION:
-            embed = self.champ_info(ctx, champ, arg2)
-        elif item and inftype == InfoType.ITEM:
-            embed = self.item_info(ctx, item)
-        elif skin and inftype == InfoType.SKIN:
-            embed = self.skin_info(ctx, skin, arg2)
-        elif summ and inftype == InfoType.SUMM:
-            embed = self.summ_info(ctx, summ)
-        elif rune and inftype == InfoType.RUNE:
-            embed = self.rune_info(ctx, rune)
-        elif mastery and inftype == InfoType.MASTERY:
-            embed = self.mastery_info(ctx, mastery)
+        if items['champ'][0] and inftype == InfoType.CHAMPION:
+            embed = self.champ_info(ctx, items['champ'][0], arg2)
+        elif items['item'][0] and inftype == InfoType.ITEM:
+            embed = self.item_info(ctx, items['item'][0])
+        elif items['skin'][0] and inftype == InfoType.SKIN:
+            embed = self.skin_info(ctx, items['skin'][0], arg2)
+        elif items['sum'][0] and inftype == InfoType.SUMM:
+            embed = self.summ_info(ctx, items['summ'][0])
+        elif items['rune'][0] and inftype == InfoType.RUNE:
+            embed = self.rune_info(ctx, items['rune'][0])
+        elif items['mastery'][0] and inftype == InfoType.MASTERY:
+            embed = self.mastery_info(ctx, items['mastery'][0])
+
+        print("hello")
 
         if embed:
             embed.set_footer(text=f"Time elapsed: {(time.time() - start) * 1000:.0f} ms")
@@ -295,7 +298,7 @@ class LoLTrivia(object):
     async def score(self, ctx: commands.Context, *, user: discord.Member=None):
         """Returns the score of [user]. Defaults to you.
         """
-        points = self.user_db.get_score(ctx.message.author.id if user is None else user.id)
+        points = self.user_db.get_score(ctx.message.author.id if user is None else user.id) or 0
         if user is None:
             await self.client.reply(f"your score is {points} points.")
         else:
@@ -348,7 +351,7 @@ class LoLTrivia(object):
         for q, task in list(self.questions[message.channel].items()):
             if not q: continue
 
-            points = await q.answer(self.client, message, functools.partial(self.user_db.get_score, message.author.id))
+            points = await q.answer(self.client, message, self.user_db.get_score)
             if points:
                 self.user_db.add_score(message.author.id, points)
                 task.cancel()

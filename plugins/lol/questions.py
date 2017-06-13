@@ -29,14 +29,14 @@ class Question(object):
     """A trivia question
     """
     def __init__(self, q: Optional[str], a: str, *,
-                 extra: str= "", fuzzywuzzy: bool=True, embed: discord.Embed=None, modifier: Callable[[str], str]=None):
+                 extra: str="", fuzzywuzzy: bool=True, embed: discord.Embed=None, modifier: Callable[[str], str]=None):
         """init. blah.
         
         Args:
             q: The question message.
             a: The answer to the question.
             
-            extra: Extra test to say after the correct answer in the expire/answer message.
+            extra: Extra text to say after the correct answer in the expire/answer message.
             fuzzywuzzy: Whether or not to use fuzzy string matching.
             embed: An embed to display.
             modifier: a function to call on each answer input (for pre-processing)
@@ -76,22 +76,23 @@ class Question(object):
         self.answered = True
         await client.send_message(channel, f"Time's up! The correct answer was '{self.a}'{self.extra}.")
 
-    async def answer(self, client: discord.Client, message: discord.Message, score: Callable) -> int:
+    async def answer(self, client: discord.Client, message: discord.Message, get_score: Callable[[str], int]) -> int:
         if self.answered: return False
 
         msg = self.modifier(message.content).lower()
+        ans = self.modifier(self.a).lower()
 
         if self.fuzzywuzzy:
-            if fuzz.ratio(self.a.lower(), msg) < 90:
+            if fuzz.ratio(ans, msg) < 90:
                 return False
-        elif self.a.lower() != msg:
+        elif ans != msg:
             return False
 
         self.answered = True
         points = config['trivia']['points']
         await client.send_message(message.channel,
                                   f"Correct answer '{self.a}'{self.extra} by {message.author.mention}! +{points} points"
-                                  f" (new score: {score() + points})")
+                                  f" (new score: {(get_score(message.author.id) or 0) + points})")
         return points
 
     def __bool__(self):
@@ -148,7 +149,11 @@ def champ_from_title() -> Question:
 def title_from_champ() -> Question:
     champ: Champion = random.choice(riotapi.get_champions())
 
-    return Question(f"What is {champ.name}'s title?", champ.title)
+    def remove_the(text: str) -> str:
+        to_remove = "the"
+        return text[len(to_remove):].strip() if text.startswith(to_remove) else text
+
+    return Question(f"What is {champ.name}'s title?", champ.title, modifier=remove_the)
 
 
 def champ_from_lore() -> Question:
@@ -245,11 +250,13 @@ def item_stat() -> Question:
 
     stat = random.choice(stats)
     val = getattr(item.stats, stat)
+    p_stat = False
     if any(x in stat for x in PERCENT_STATS):
+        p_stat = True
         val *= 100
 
     return Question(f"How much **{stat.replace('_', ' ').replace('percent', '%')}** does '{item.name}' give?",
-                    f"{val:.0f}", modifier=lambda x: x.strip('%'))
+                    f"{val:.0f}{'%' if p_stat else ''}", modifier=lambda x: x.strip('%'))
 
 
 def get_random_question(force_index: int=None) -> Question:

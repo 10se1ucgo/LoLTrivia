@@ -38,7 +38,7 @@ class BotDebug(object):
         await self.say_output(result, stdout, stderr)
 
     async def say_output(self, result, stdout, stderr):
-        if result:
+        if result is not None:
             await self.client.say(f"Result: `{result}`")
         if stdout:
             logger.info(f"exec stdout: \n{stdout}")
