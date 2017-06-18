@@ -150,6 +150,7 @@ def title_from_champ() -> Question:
     champ: Champion = random.choice(riotapi.get_champions())
 
     def remove_the(text: str) -> str:
+        text = text.lower()
         to_remove = "the"
         return text[len(to_remove):].strip() if text.startswith(to_remove) else text
 

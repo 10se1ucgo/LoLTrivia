@@ -9,16 +9,13 @@ from fuzzywuzzy import process
 
 DDRAGON_BASE = f"http://ddragon.leagueoflegends.com/cdn/{riotapi.get_versions()[0]}"
 
-SPELL_SCALINGS = {'attackdamage': "AD", 'bonusattackdamage': "**Bonus** AD",
-                  'armor': "Armor", 'bonusarmor': "**Bonus** Armor",
-                  'spellblock': "Magic Resist", 'bonusspellblock': "**Bonus** Magic Resist",
-                  'health': "Health", 'bonushealth': "**Bonus** Health",
-                  'spelldamage': "AP"}
-# unhandled special cases:
-# @stacks @special.viw @special.jaxrarmor @special.BraumWArmor @special.jaxrmr @dynamic.abilitypower
-# @special.nautilusq @dynamic.attackdamage @special.BraumWMR @cooldownchampion
-
-# handled special cases: @player.level @text
+SPELL_SCALINGS = {'attackdamage': "AD", 'bonusattackdamage': "**bonus** AD",
+                  'armor': "Armor", 'bonusarmor': "**bonus** Armor",
+                  'spellblock': "Magic Resist", 'bonusspellblock': "**bonus** Magic Resist",
+                  'health': "Health", 'bonushealth': "**bonus** Health",
+                  'spelldamage': "AP", "@dynamic.abilitypower": "AP"}
+# unhandled special cases: (i have been unable to find out what these mean, api missing too much data :/)
+# @dynamic.attackdamage @cooldownchampion
 
 SANITIZER = html2text.HTML2Text()
 SANITIZER.ignore_links = True
@@ -66,7 +63,11 @@ def get_by_name(name: str, items: Sequence[TItem]) -> Tuple[Optional[TItem], int
     return (res[2], res[1]) if res else (None, 0)
 
 
-SkinInfo = NamedTuple("SkinInfo", champ=Champion, skin=Skin, price=str, date=str)
+class SkinInfo(NamedTuple):
+    champ: Champion
+    skin: Skin
+    price: str
+    date: str
 
 
 def get_skin_by_name(name: str) -> Tuple[Optional[SkinInfo], int]:
@@ -96,12 +97,21 @@ def parse_tooltip(spell: Union[Spell, SummonerSpell], tooltip: str) -> str:
 
     for var in spell.variables:
         if var.link in SPELL_SCALINGS:
-            vals = '/'.join(f'{coeff:g}' for coeff in var.coefficients)
+            vals = '/'.join(f'{coeff * 100:g}' for coeff in var.coefficients)
             replacement = f"{vals}% {SPELL_SCALINGS[var.link]}"
         elif var.link == "@player.level":
             replacement = f"{var.coefficients[0]:g}-{var.coefficients[-1]:g} (based on level)"
         elif var.link == "@text":
             replacement = '/'.join(f'{coeff:g}' for coeff in var.coefficients)
+        elif var.link == "@stacks":
+            replacement = f"{spell.name} stacks"
+        elif var.link == "@special.viw":
+            replacement = f"1% per {'/'.join(f'{coeff:g}' for coeff in var.coefficients)} **Bonus** AD"
+        elif var.link in {"@special.jaxrarmor", "@special.jaxrmr", "@special.BraumWArmor", "@special.BraumWMR"}:
+            # idk why the spell tooltips even have these variables. the actual numbers are static inside the text...
+            replacement = "bonus"
+        elif var.link == "@special.nautilusq":
+            replacement = ""
         else:
             replacement = f"{var.coefficients} {var.link}"
         tooltip = tooltip.replace(f"{{{{ {var.key} }}}}", replacement)

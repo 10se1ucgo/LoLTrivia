@@ -1,6 +1,4 @@
 import asyncio
-import enum
-import functools
 import operator
 import textwrap
 import time
@@ -15,15 +13,6 @@ from discord.ext import commands
 
 from plugins.lol import db, questions, util, config
 
-
-class InfoType(enum.Enum):
-    ANY = 0
-    CHAMPION = Champion
-    ITEM = Item
-    SKIN = util.SkinInfo  # sorry
-    SUMM = SummonerSpell
-    RUNE = Rune
-    MASTERY = Mastery
 
 class LoLTrivia(object):
     def __init__(self, client: commands.Bot):
@@ -92,50 +81,6 @@ class LoLTrivia(object):
         
         If [arg1] is the name or ID of an item, returns info on the item (name, stats, gold values, etc)
         """
-        return await self.info_cmd(ctx, arg1, arg2)
-
-    @trivia.command(pass_context=True)
-    async def champ(self, ctx: commands.Context, arg1: str, arg2: str=""):
-        """Returns info on a champion (title, passive, spells).
-        
-        Additionally, [arg2] can be specified as one of "Q", "W", "E", "R", "P",
-            returning specific info about that spell.
-        """
-        return await self.info_cmd(ctx, arg1, arg2, InfoType.CHAMPION)
-
-    @trivia.command(pass_context=True)
-    async def item(self, ctx: commands.Context, *, item: str):
-        """Returns info on a item (name, stats, gold values, etc).
-        """
-        return await self.info_cmd(ctx, item, "", InfoType.ITEM)
-
-    @trivia.command(pass_context=True)
-    async def skin(self, ctx: commands.Context, arg1: str, arg2: str=""):
-        """Returns info on a skin (name, price, release date, splash art)
-
-        Can specify [arg2] as "loading" to get loading screen slice.
-        """
-        return await self.info_cmd(ctx, arg1, arg2, InfoType.SKIN)
-
-    @trivia.command(pass_context=True)
-    async def summ(self, ctx: commands.Context, *, summ: str):
-        """Returns info on a summoner spell (name, cooldown, required level, tooltip).
-        """
-        return await self.info_cmd(ctx, summ, "", InfoType.SUMM)
-
-    @trivia.command(pass_context=True)
-    async def rune(self, ctx: commands.Context, *, rune: str):
-        """Returns info on a rune (name, tier, description).
-        """
-        return await self.info_cmd(ctx, rune, "", InfoType.RUNE)
-
-    @trivia.command(pass_context=True)
-    async def mastery(self, ctx: commands.Context, *, mastery: str):
-        """Returns info on a mastery (name, tree, description).
-        """
-        return await self.info_cmd(ctx, mastery, "", InfoType.MASTERY)
-
-    async def info_cmd(self, ctx: commands.Context, arg1: str, arg2: str, inftype: InfoType=InfoType.ANY):
         # messy and often slow but im too lazy to fix
         if self.questions[ctx.message.channel]:
             return
@@ -143,44 +88,118 @@ class LoLTrivia(object):
         start: float = time.time()
         embed: discord.Embed = None
 
-        items: Dict[str, Tuple[Any, int]] = {
-            "champ": util.get_champion_by_name(arg1),
-            "item": util.get_item(arg1),
-            "skin": util.get_skin_by_name(arg1),
-            "summ": util.get_by_name(arg1, riotapi.get_summoner_spells()),
-            "rune": util.get_by_name(arg1, riotapi.get_runes()),
-            "mastery": util.get_by_name(arg1, riotapi.get_masteries())
-        }
+        items: List[Tuple[Any, int]] = [
+            util.get_champion_by_name(arg1),
+            util.get_item(arg1),
+            util.get_skin_by_name(arg1),
+            util.get_by_name(arg1, riotapi.get_summoner_spells()),
+            util.get_by_name(arg1, riotapi.get_runes()),
+            util.get_by_name(arg1, riotapi.get_masteries())
+        ]
 
-        if inftype == InfoType.ANY:
-            # if any, try to pick the best match
-            inftype = InfoType(type(max(items.items(), key=operator.itemgetter(1))[0]))
+        info_item, score = max(items, key=operator.itemgetter(1))
 
-        if items['champ'][0] and inftype == InfoType.CHAMPION:
-            embed = self.champ_info(ctx, items['champ'][0], arg2)
-        elif items['item'][0] and inftype == InfoType.ITEM:
-            embed = self.item_info(ctx, items['item'][0])
-        elif items['skin'][0] and inftype == InfoType.SKIN:
-            embed = self.skin_info(ctx, items['skin'][0], arg2)
-        elif items['sum'][0] and inftype == InfoType.SUMM:
-            embed = self.summ_info(ctx, items['summ'][0])
-        elif items['rune'][0] and inftype == InfoType.RUNE:
-            embed = self.rune_info(ctx, items['rune'][0])
-        elif items['mastery'][0] and inftype == InfoType.MASTERY:
-            embed = self.mastery_info(ctx, items['mastery'][0])
+        if isinstance(info_item, Champion):
+            embed = self.champ_info(info_item, arg2)
+        elif isinstance(info_item, Item):
+            embed = self.item_info(info_item)
+        elif isinstance(info_item, util.SkinInfo):
+            embed = self.skin_info(info_item, arg2)
+        elif isinstance(info_item, SummonerSpell):
+            embed = self.summ_info(info_item)
+        elif isinstance(info_item, Rune):
+            embed = self.rune_info(info_item)
+        elif isinstance(info_item, Mastery):
+            embed = self.mastery_info(info_item)
 
-        print("hello")
+        if not embed:
+            return await self.client.say("No match found.")
 
-        if embed:
-            embed.set_footer(text=f"Time elapsed: {(time.time() - start) * 1000:.0f} ms")
-            return await self.client.say(embed=embed)
-        await self.client.say("No match found.")
+        footer = f"Time elapsed: {(time.time() - start) * 1000:.0f} ms/Match Score: {score}"
+        await self.client.say(embed=embed.set_footer(text=footer))
 
-    def champ_info(self, ctx: commands.Context, champ: Champion, arg2: str):
+    @trivia.command(pass_context=True)
+    async def champ(self, ctx: commands.Context, champ_name: str, spell_name: str=""):
+        """Returns info on a champion (title, passive, spells).
+        
+        Additionally, [spell_name] can be specified as one of "Q", "W", "E", "R", "P",
+            returning specific info about that spell.
+        """
+        if self.questions[ctx.message.channel]:
+            return
+
+        champ, score = util.get_champion_by_name(champ_name)
+        if not champ:
+            return await self.client.say("No match found.")
+        await self.client.say(embed=self.champ_info(champ, spell_name).set_footer(text=f"Match Score: {score}"))
+
+    @trivia.command(pass_context=True)
+    async def item(self, ctx: commands.Context, *, item_name_or_id: str):
+        """Returns info on a item (name, stats, gold values, etc).
+        """
+        if self.questions[ctx.message.channel]:
+            return
+
+        item, score = util.get_item(item_name_or_id)
+        if not item:
+            return await self.client.say("No match found.")
+        await self.client.say(embed=self.item_info(item).set_footer(text=f"Match Score: {score}"))
+
+    @trivia.command(pass_context=True)
+    async def skin(self, ctx: commands.Context, skin_name: str, type: str=""):
+        """Returns info on a skin (name, price, release date, splash art)
+
+        Can specify [type] as "loading" to get loading screen slice.
+        """
+        if self.questions[ctx.message.channel]:
+            return
+
+        skin, score = util.get_skin_by_name(skin_name)
+        if not skin:
+            return await self.client.say("No match found.")
+        await self.client.say(embed=self.skin_info(skin, type).set_footer(text=f"Match Score: {score}"))
+
+    @trivia.command(pass_context=True)
+    async def summ(self, ctx: commands.Context, *, summ_name: str):
+        """Returns info on a summoner spell (name, cooldown, required level, tooltip).
+        """
+        if self.questions[ctx.message.channel]:
+            return
+
+        summ, score = util.get_by_name(summ_name, riotapi.get_summoner_spells())
+        if not summ:
+            return await self.client.say("No match found.")
+        await self.client.say(embed=self.summ_info(summ).set_footer(text=f"Match Score: {score}"))
+
+    @trivia.command(pass_context=True)
+    async def rune(self, ctx: commands.Context, *, rune_name: str):
+        """Returns info on a rune (name, tier, description).
+        """
+        if self.questions[ctx.message.channel]:
+            return
+
+        rune, score = util.get_by_name(rune_name, riotapi.get_runes())
+        if not rune:
+            return await self.client.say("No match found.")
+        await self.client.say(embed=self.rune_info(rune).set_footer(text=f"Match Score: {score}"))
+
+    @trivia.command(pass_context=True)
+    async def mastery(self, ctx: commands.Context, *, mastery_name: str):
+        """Returns info on a mastery (name, tree, description).
+        """
+        if self.questions[ctx.message.channel]:
+            return
+
+        mastery, score = util.get_by_name(mastery_name, riotapi.get_masteries())
+        if not mastery:
+            return await self.client.say("No match found.")
+        await self.client.say(embed=self.mastery_info(mastery).set_footer(text=f"Match Score: {score}"))
+
+    def champ_info(self, champ: Champion, arg2: str):
         if arg2.lower() == "p":
-            return self.passive_info(ctx, champ)
+            return self.passive_info(champ)
         elif arg2.lower() in ('q', 'w', 'e', 'r'):
-            return self.spell_info(ctx, champ, ability=arg2)
+            return self.spell_info(champ, ability=arg2)
 
         passive: Passive = champ.passive
 
@@ -197,7 +216,7 @@ class LoLTrivia(object):
 
         return embed
 
-    def spell_info(self, ctx: commands.Context, champ: Champion, ability: str):
+    def spell_info(self, champ: Champion, ability: str):
         spell: Spell = champ.spells["qwer".index(ability.lower())]
 
         champ_name_link = champ.name.replace(' ', '_')
@@ -216,7 +235,7 @@ class LoLTrivia(object):
                         inline=False)
         return embed
 
-    def passive_info(self, ctx: commands.Context, champ: Champion):
+    def passive_info(self, champ: Champion):
         passive: Passive = champ.passive
 
         champ_name_link = champ.name.replace(' ', '_')
@@ -231,7 +250,7 @@ class LoLTrivia(object):
 
         return embed
 
-    def skin_info(self, ctx: commands.Context, info: util.SkinInfo, type: str=None):
+    def skin_info(self, info: util.SkinInfo, type: str=None):
         champ_name_link = info.champ.name.replace(' ', '_')
         skin_name = info.skin.name if info.skin.name != "default" else f"Classic {info.champ.name}"
         embed = discord.Embed(title=f"{skin_name}", type="rich", color=discord.Color.blue(),
@@ -246,7 +265,7 @@ class LoLTrivia(object):
 
         return embed
 
-    def item_info(self, ctx: commands.Context, item: Item):
+    def item_info(self, item: Item):
         embed = discord.Embed(title=f"{item.name}",
                               description=util.SANITIZER.handle(item.description),
                               url=f"http://leagueoflegends.wikia.com/wiki/{item.name.replace(' ', '_')}",
@@ -265,7 +284,7 @@ class LoLTrivia(object):
             embed.add_field(name="Builds Into", value=', '.join(x.name for x in item.component_of))
         return embed
 
-    def summ_info(self, ctx: commands.Context, summ: SummonerSpell):
+    def summ_info(self, summ: SummonerSpell):
         embed = discord.Embed(title=summ.name, description=f"Available at summoner level {summ.summoner_level}",
                               url=f"http://leagueoflegends.wikia.com/wiki/{summ.name.replace(' ', '_')}",
                               type="rich", color=discord.Color.blue())
@@ -276,7 +295,7 @@ class LoLTrivia(object):
                         inline=False)
         return embed
 
-    def rune_info(self, ctx: commands.Context, rune: Rune):
+    def rune_info(self, rune: Rune):
         embed = discord.Embed(title=rune.name, description=f"Tier {rune.meta_data.tier}",
                               type="rich", color=discord.Color.blue())
         embed.set_thumbnail(url=util.get_image_link(rune.image))
@@ -284,7 +303,7 @@ class LoLTrivia(object):
                         inline=False)
         return embed
 
-    def mastery_info(self, ctx: commands.Context, mastery: Mastery):
+    def mastery_info(self, mastery: Mastery):
         embed = discord.Embed(title=mastery.name, description=f"{mastery.tree.value} Tree",
                               url=f"http://leagueoflegends.wikia.com/wiki/{mastery.name.replace(' ', '_')}",
                               type="rich", color=discord.Color.blue())
