@@ -63,11 +63,13 @@ class BotDebug(object):
         with std_redirect() as (stdout, stderr):
             try:
                 if use_exec:
+                    # wrap in async function to run in loop and allow await calls
                     func = f"async def run():\n{textwrap.indent(code, '    ')}"
                     exec(func, scope)
                     result = await scope['run']()
                 else:
                     result = eval(code, scope)
+                    # eval doesn't allow `await`
                     if inspect.isawaitable(result):
                         result = await result
             except (SystemExit, KeyboardInterrupt):

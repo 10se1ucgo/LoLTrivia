@@ -21,13 +21,13 @@ async def on_ready():
 
 
 @client.event
-async def on_command_error(exec: BaseException, ctx: commands.Context):
-    if isinstance(exec, (commands.BadArgument, commands.MissingRequiredArgument, commands.CommandOnCooldown)):
+async def on_command_error(e: BaseException, ctx: commands.Context):
+    if isinstance(e, (commands.BadArgument, commands.MissingRequiredArgument, commands.CommandOnCooldown)):
         # do these really warrant a traceback?
         return
     logger.error(f'Ignoring exception in command {ctx.command}')
     logger.error("Logging an uncaught exception",
-                 exc_info=(type(exec), exec, exec.__traceback__))
+                 exc_info=(type(e), e, e.__traceback__))
 
 
 if __name__ == "__main__":

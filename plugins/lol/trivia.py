@@ -70,16 +70,7 @@ class LoLTrivia(object):
 
     @trivia.command(pass_context=True)
     async def info(self, ctx: commands.Context, arg1: str, arg2: str=""):
-        """Returns info on a champion, skin or item (best guess).
-
-        If [arg1] is the name of a champion, returns info on the champion (title, passive, spells).
-        Additionally, [arg2] can be specified as one of "Q", "W", "E", "R", "P",
-            returning specific info about that spell.
-        
-        if [arg1] is the name of a skin, returns info on price/release date as well as splash art.
-        Can specify [arg2] as "loading" to get loading screen slice.
-        
-        If [arg1] is the name or ID of an item, returns info on the item (name, stats, gold values, etc)
+        """Returns info on a champ/item/skin/summ/rune/mastery (best guess).
         """
         # messy and often slow but im too lazy to fix
         if self.questions[ctx.message.channel]:
@@ -119,7 +110,7 @@ class LoLTrivia(object):
         await self.client.say(embed=embed.set_footer(text=footer))
 
     @trivia.command(pass_context=True)
-    async def champ(self, ctx: commands.Context, champ_name: str, spell_name: str=""):
+    async def champ(self, ctx: commands.Context, champ_name: str, spell_key: str= ""):
         """Returns info on a champion (title, passive, spells).
         
         Additionally, [spell_name] can be specified as one of "Q", "W", "E", "R", "P",
@@ -131,7 +122,7 @@ class LoLTrivia(object):
         champ, score = util.get_champion_by_name(champ_name)
         if not champ:
             return await self.client.say("No match found.")
-        await self.client.say(embed=self.champ_info(champ, spell_name).set_footer(text=f"Match Score: {score}"))
+        await self.client.say(embed=self.champ_info(champ, spell_key).set_footer(text=f"Match Score: {score}"))
 
     @trivia.command(pass_context=True)
     async def item(self, ctx: commands.Context, *, item_name_or_id: str):
@@ -195,11 +186,11 @@ class LoLTrivia(object):
             return await self.client.say("No match found.")
         await self.client.say(embed=self.mastery_info(mastery).set_footer(text=f"Match Score: {score}"))
 
-    def champ_info(self, champ: Champion, arg2: str):
-        if arg2.lower() == "p":
+    def champ_info(self, champ: Champion, spell_key: str):
+        if spell_key.lower() == "p":
             return self.passive_info(champ)
-        elif arg2.lower() in ('q', 'w', 'e', 'r'):
-            return self.spell_info(champ, ability=arg2)
+        elif spell_key.lower() in ('q', 'w', 'e', 'r'):
+            return self.spell_info(champ, spell_key=spell_key)
 
         passive: Passive = champ.passive
 
@@ -209,19 +200,19 @@ class LoLTrivia(object):
         embed.set_thumbnail(url=util.get_image_link(champ.image))
 
         embed.add_field(name=f"Passive - {passive.name}",
-                        value=textwrap.shorten(passive.description, 125, placeholder="..."), inline=False)
+                        value=textwrap.shorten(passive.sanitized_description, 125, placeholder="..."), inline=False)
         for x, spell in enumerate(champ.spells):
             embed.add_field(name=f"{'QWER'[x]} - {spell.name}",
-                            value=textwrap.shorten(spell.description, 125, placeholder="..."))
+                            value=textwrap.shorten(spell.sanitized_description, 125, placeholder="..."))
 
         return embed
 
-    def spell_info(self, champ: Champion, ability: str):
-        spell: Spell = champ.spells["qwer".index(ability.lower())]
+    def spell_info(self, champ: Champion, spell_key: str):
+        spell: Spell = champ.spells["qwer".index(spell_key.lower())]
 
         champ_name_link = champ.name.replace(' ', '_')
         url_anchored = f"{champ_name_link}#{spell.name.replace(' ', '_')}"
-        embed = discord.Embed(title=f"{spell.name} ({ability.upper()})",
+        embed = discord.Embed(title=f"{spell.name} ({spell_key.upper()})",
                               description=util.parse_tooltip(spell, spell.resource),
                               url=f"http://leagueoflegends.wikia.com/wiki/{url_anchored}",
                               type="rich", color=discord.Color.blue())

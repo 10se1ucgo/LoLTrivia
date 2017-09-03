@@ -40,7 +40,7 @@ Most users can just invite the public bot to their server***
 # REQUIREMENTS
 * Python 3.6
 * [discord.py](https://github.com/Rapptz/discord.py) - Discord API wrapper
-* [cassiopeia](https://github.com/meraki-analytics/cassiopeia) - Riot API wrapper
+* [cassiopeia **< 3.0**](https://github.com/meraki-analytics/cassiopeia) - Riot API wrapper
 * [html2text](https://github.com/aaronsw/html2text) - Used to sanitize certain API results (tooltips, descriptions, etc)
 * [fuzzywuzzy](https://github.com/seatgeek/fuzzywuzzy) - Fuzzy string matching for trivia questions
 
@@ -53,6 +53,10 @@ Modify anything else to your content.
 3. You need to generate your own `quotes.json` and `skins.json` in the `data` folder.
 There are example files showing the format. I will eventually make them optional.
 4. Run `run.py`.
+
+# TODO
+
+- [ ] Move to new cassiopeia (new version missing certain things for now)
 
 # DISCLAIMER
 
