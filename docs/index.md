@@ -2,7 +2,7 @@
 A discord LoL Trivia bot written in Python, based on
 [the original #r/leagueoflegends IRC version](https://github.com/SaschaMann/TriviaBot/)
 
-[Invite Link]() (Soon<sup>TM</sup>)
+[Invite Link](https://discordapp.com/oauth2/authorize?client_id=272459645673668608&scope=bot&permissions=101440) (BETA: Please report bugs on the GitHub issue tracker!)
 
 
 the code needs a cleanup pls no flamerino ty
