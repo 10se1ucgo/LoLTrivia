@@ -7,7 +7,7 @@
     "api_region": "NA",
     "api_key": "RGAPI-00000000-0000-0000-0000-000000000000",
     "trivia": {
-      "cd": 5,
+      "cd": 10,
       "max_games": 15,
       "game_length": 15,
       "points": 15,

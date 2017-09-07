@@ -9,7 +9,8 @@ the code needs a cleanup pls no flamerino ty
 
 # USAGE
 - Base command: `!trivia [num=1]` - Starts a game of LoL Trivia.
-    - `[num]` specifies the number of games to play. Max 15. Only staff* can play more than 1 game.
+    - `[num]` specifies the number of games to play. Max 15. Only staff* can play more than 5 game.
+    - 10 second cooldown.
 
 - `!trivia force [num] [force_index]` - Staff* only, force starts a game of trivia, regardless of cooldown.
     - If `[force_index]` is specified, that specific question type will be played.

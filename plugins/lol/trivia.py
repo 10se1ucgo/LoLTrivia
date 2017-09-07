@@ -42,7 +42,7 @@ class LoLTrivia(object):
         if discord.utils.get(ctx.message.channel.server.me.roles, name="DisableTrivia") is not None: return
 
         if not ctx.message.author.permissions_in(ctx.message.channel).manage_messages:
-            num = 1
+            num = min(num, 5)
         return await self.start_trivia(ctx, num)
 
     @trivia.command(pass_context=True)

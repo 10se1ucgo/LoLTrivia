@@ -1,5 +1,6 @@
 import random
-from typing import Optional, Callable, Tuple, Union, List
+from collections import Counter
+from typing import *
 
 import discord
 from cassiopeia import riotapi
@@ -9,30 +10,29 @@ from fuzzywuzzy import fuzz
 
 from plugins.lol import util, config
 
-ALLOWED_MODES = {mode.upper() for mode in config["trivia"]["allowed_modes"]}
-ALLOWED_SPELLS = [spell for spell in riotapi.get_summoner_spells() if not ALLOWED_MODES.isdisjoint(spell.data.modes)]
+ALLOWED_MODES: Set[str] = {mode.upper() for mode in config["trivia"]["allowed_modes"]}
+ALLOWED_SPELLS: List[SummonerSpell] = \
+    [spell for spell in riotapi.get_summoner_spells() if not ALLOWED_MODES.isdisjoint(spell.data.modes)]
 
-# this is readable, right? :^)
-ALLOWED_MAPS = {str(Map[map.lower()].value) if not map.isdigit() else map for map in config["trivia"]["allowed_maps"]}
-ALLOWED_ITEMS = [item for item in riotapi.get_items()
-                 if not ALLOWED_MAPS.isdisjoint(map for map in item.data.maps if item.data.maps[map])]
-# ok that looks pretty confusing so let me break it down
-# item.data.maps returns a dict e.g. {'11': True, '12': True, '14': False, '16': False, '8': True, '10': True}
-# map for map in item.data.maps if item.data.maps[map] returns all the keys that are True, so in this case  it returns
-# ['11', '12', '8', '10']. ALLOWED_MAPS is a set e.g. {'12', '11'}.
-# and {'12', '11'}.isdisjoint(['11', '12', '8', '10']) returns True if the set has no elements in common with other.
-# if this really needed 5 lines of explanation then perhaps i should rewrite it xd
+ALLOWED_MAPS: Set[str] = \
+    {str(Map[map.lower()].value) if not map.isdigit() else map for map in config["trivia"]["allowed_maps"]}
 
-PERCENT_STATS = ["percent", "spell_vamp", "life_steal", "tenacity", "critical", "attack_speed", "cooldown"]
+ALLOWED_ITEMS: List[Item] = []
+for item in riotapi.get_items():
+    allowed_maps = {map for map, allowed in item.data.maps.items() if allowed}
+    if not ALLOWED_MAPS.isdisjoint(allowed_maps):
+        ALLOWED_ITEMS.append(item)
+
+PERCENT_STATS: List[str] = ["percent", "spell_vamp", "life_steal", "tenacity", "critical", "attack_speed", "cooldown"]
 
 class Question(object):
     """A trivia question
     """
-    def __init__(self, title: str, desc: Optional[str], a: Union[str, List[str]], *,
+    def __init__(self, title: str, desc: Optional[str], a: Union[str, Iterable[str]], *,
                  extra: str="", fuzzywuzzy: bool=True, modifier: Callable[[str], str]=lambda x: x):
-        """init. blah.
-        
-        Args:s
+        """Create new Question object
+
+        Args:
             title: The question title.
             desc: The question description
             a: The correct answer(s) to the question.
@@ -41,14 +41,14 @@ class Question(object):
             fuzzywuzzy: Whether or not to use fuzzy string matching.
             modifier: a function to call on each answer input (for pre-processing)
         """
-        self.q = discord.Embed(title=title, description=desc, color=discord.Color.blue())
-        self.a = a if isinstance(a, List) else [a]
+        self.q: discord.Embed = discord.Embed(title=title, description=desc, color=discord.Color.blue())
+        self.a: List[str] = list(a) if not isinstance(a, str) else [a]
 
-        self.extra = extra
-        self.fuzzywuzzy = fuzzywuzzy
-        self.modifier = modifier
+        self.extra: str = extra
+        self.fuzzywuzzy: bool = fuzzywuzzy
+        self.modifier: Callable[[str], str] = modifier
 
-        self.answered = False
+        self.active: bool = True
 
     async def say(self, client: discord.Client, channel: discord.Channel):
         """Say the question in chat (and the embed if specified)
@@ -60,7 +60,7 @@ class Question(object):
         Returns:
             None
         """
-        await client.send_message(channel, embed=self.q)
+        await client.send_message(channel, self.q.title, embed=self.q)
 
     async def expire(self, client: discord.Client, channel: discord.Channel):
         """Expire the question and end the game in chat.
@@ -72,47 +72,47 @@ class Question(object):
         Returns:
             None
         """
-        self.answered = True
-        a_str = '/'.join(random.sample(self.a, min(3, len(self.a)))) + ('/etc...' if len(self.a) > 3 else '')
-        await client.send_message(channel, f"Time's up! The correct answer was '{a_str}'{self.extra}.")
+        self.active = False
+        correct: str = '/'.join(random.sample(self.a, min(3, len(self.a)))) + ('/etc...' if len(self.a) > 3 else '')
+        await client.send_message(channel, f"Time's up! The correct answer was '{correct}'{self.extra}.")
 
     async def answer(self, client: discord.Client, message: discord.Message, get_score: Callable[[str], int]) -> int:
-        if self.answered: return False
+        if not self.active: return False
 
-        msg = self.modifier(message.content).lower()
+        msg: str = self.modifier(message.content).lower()
 
         for ans in self.a:
-            mod_ans = self.modifier(ans).lower()
+            mod_ans: str = self.modifier(ans).lower()
 
             if (self.fuzzywuzzy and fuzz.ratio(mod_ans, msg) >= 90) or (mod_ans == msg):
                 break
         else:
             return False
 
-        self.answered = True
-        points = config['trivia']['points']
+        self.active = False
+        points: int = config['trivia']['points']
         await client.send_message(message.channel,
                                   f"Correct answer '{ans}'{self.extra} by {message.author.mention}! +{points} points"
                                   f" (new score: {(get_score(message.author.id) or 0) + points})")
         return points
 
-    def set_thumbnail(self, *args, **kwargs):
+    def set_thumbnail(self, *args, **kwargs) -> 'Question':
         self.q.set_thumbnail(*args, **kwargs)
         return self
 
-    def set_image(self, *args, **kwargs):
+    def set_image(self, *args, **kwargs) -> 'Question':
         self.q.set_image(*args, **kwargs)
         return self
 
-    def add_field(self, *args, **kwargs):
+    def add_field(self, *args, **kwargs) -> 'Question':
         self.q.add_field(*args, **kwargs)
         return self
 
-    def __bool__(self):
-        return not self.answered
+    def __bool__(self) -> bool:
+        return self.active
 
 
-def censor_name(text: str, *args, replacement: str="XXXXXXX") -> str:
+def censor_name(text: str, *args: str, replacement: str="XXXXXXX") -> str:
     for word in args:
         text = text.replace(word, replacement)
     return text
@@ -182,7 +182,7 @@ def champ_from_quote() -> Question:
 
 def champ_from_skins() -> Question:
     champ: Champion = random.choice(riotapi.get_champions())
-    skins: str = censor_name('- ' + '\n- '.join(f'"{skin.name}"' for skin in champ.skins[1:]), *champ.name.split())
+    skins: str = censor_name('\n'.join([f'- "{skin.name}"' for skin in champ.skins[1:]]), *champ.name.split())
 
     return Question("Which champion's skins are these?", skins, champ.name)
 
@@ -239,12 +239,12 @@ def item_text() -> Question:
 
 def item_stat() -> Question:
     item: Item = random.choice([item for item in ALLOWED_ITEMS if getattr(item, 'stats')])
-    stats = [stat for stat in item.stats._ItemStats__stats if getattr(item.stats, stat, 0.0) != 0.0]
+    stats: List[str] = [stat for stat in item.stats._ItemStats__stats if getattr(item.stats, stat, 0.0) != 0.0]
     if not stats:
         return item_stat()
 
-    stat = random.choice(stats)
-    val = getattr(item.stats, stat)
+    stat: str = random.choice(stats)
+    val: Union[int, float] = getattr(item.stats, stat)
     p_stat = False
     if any(x in stat for x in PERCENT_STATS):
         p_stat = True
@@ -258,21 +258,17 @@ def item_stat() -> Question:
 def item_from_component() -> Question:
     item: Item = random.choice([item for item in ALLOWED_ITEMS if item.component_of])
 
-    return Question("What is one item this builds into?", item.name, [c.name for c in item.component_of]).\
+    return Question("What is one item this builds into?", item.name, {c.name for c in item.component_of}).\
         set_thumbnail(url=util.get_image_link(item.image))
 
 
 def item_from_components() -> Question:
     items: List[Item] = [item for item in ALLOWED_ITEMS if len(item.components) > 1]
-    item = random.choice(items)
 
-    components = {comp.name for comp in item.components}
-    components_str = '- ' + '\n- '.join(comp.name for comp in item.components)
-    correct_items = []
+    components: Counter[Item] = Counter(random.choice(items).components)
+    components_str: str = '\n'.join([f"- {item} x {number}" for item, number in components.items()])
 
-    for i in items:
-        if {comp.name for comp in i.components} == components:
-            correct_items.append(i.name)
+    correct_items: Set[str] = {item.name for item in items if Counter(item.components) == components}
 
     return Question("What is one item that builds from these items?", components_str, correct_items)
 
