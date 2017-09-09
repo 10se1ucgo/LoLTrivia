@@ -1,18 +1,19 @@
 #!python3
+import json
 import logging
 
 from discord.ext import commands
 
-import common
 import plugins
 
-config: dict = common.config["bot"]
+with open("config.json", "r") as f:
+    config: dict = json.load(f)
 
 client = commands.Bot(command_prefix=commands.when_mentioned_or('!'), description="League of Legends Trivia",
                       pm_help=True)
-client.add_cog(plugins.lol.LoLTrivia(client))
-client.add_cog(plugins.debug.BotDebug(client))
-client.owner_id: str = config["owner_id"]
+client.owner_id: str = config["bot"]["owner_id"]
+
+plugins.load_plugins(client, config)
 
 
 @client.event
@@ -34,4 +35,4 @@ if __name__ == "__main__":
     logging.basicConfig(format='%(asctime)s::%(name)s::%(levelname)s::%(message)s', level=logging.INFO)
     logger = logging.getLogger('LoLTrivia')
     logger.info("Logging in...")
-    client.run(config["discord_token"])
+    client.run(config["bot"]["discord_token"])

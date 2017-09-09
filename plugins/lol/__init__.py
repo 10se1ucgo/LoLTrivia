@@ -1,8 +1,16 @@
+from discord.ext import commands
+
 from cassiopeia import riotapi
 
-import common
-config = common.config[__name__]
+config: dict = {}
 
-riotapi.set_region(config["api_region"])
-riotapi.set_api_key(config["api_key"])
-from plugins.lol.trivia import LoLTrivia
+
+def init(bot: commands.Bot, cfg: dict):
+    global config
+    config = cfg[__name__]
+
+    riotapi.set_region(config["api_region"])
+    riotapi.set_api_key(config["api_key"])
+
+    from .trivia import LoLTrivia
+    bot.add_cog(LoLTrivia(bot))

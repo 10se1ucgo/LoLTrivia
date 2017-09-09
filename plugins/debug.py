@@ -11,13 +11,9 @@ from typing import Pattern, Match, Any, Dict, Tuple
 
 from discord.ext import commands
 
-import common
-
-config = common.config[__name__]
-
 # i took this from somewhere and i cant remember where
 md: Pattern = re.compile(r"^(([ \t]*`{3,4})([^\n]*)(?P<code>[\s\S]+?)(^[ \t]*\2))", re.MULTILINE)
-logger = logging.getLogger('LoLTrivia.debug')
+logger = logging.getLogger(__name__)
 
 
 class BotDebug(object):
@@ -48,7 +44,8 @@ class BotDebug(object):
             await self.client.say(f"stderr: ```fix\n{stderr}\n```")
 
     async def run(self, ctx: commands.Context, cmd: str, use_exec: bool, extra_scope: dict=None) -> Tuple[Any, str, str]:
-        if not config["enabled"] or ctx.message.author.id != self.client.owner_id: return None, "", ""
+        if ctx.message.author.id != self.client.owner_id:
+            return None, "", ""
 
         # note: exec/eval inserts __builtins__ if a custom version is not defined (or set to {} or whatever)
         scope: Dict[str, Any] = {'bot': self.client, 'ctx': ctx}
@@ -100,3 +97,8 @@ def std_redirect():
     yield sys.stdout, sys.stderr
     sys.stdout = stdout
     sys.stderr = stderr
+
+
+def init(bot: commands.Bot, cfg: dict):
+    bot.add_cog(BotDebug(bot))
+

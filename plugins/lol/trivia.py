@@ -11,7 +11,7 @@ from cassiopeia import riotapi
 from cassiopeia.type.core.staticdata import *
 from discord.ext import commands
 
-from plugins.lol import db, questions, util, config
+from . import db, questions, util, config
 
 
 class LoLTrivia(object):
@@ -374,8 +374,10 @@ class LoLTrivia(object):
     def lock_questions(self, channel):
         # dummy input to prevent the question queue from being empty when needed (allowing for !trivia spam)
         self.questions[channel][running] = True
-        yield
-        self.questions[channel].pop(running, None)
+        try:
+            yield
+        finally:
+            self.questions[channel].pop(running, None)
 
 
 running = bool()  # its just a dummy value

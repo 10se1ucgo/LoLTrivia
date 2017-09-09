@@ -8,7 +8,7 @@ from cassiopeia.type.core.common import Map
 from cassiopeia.type.core.staticdata import *
 from fuzzywuzzy import fuzz
 
-from plugins.lol import util, config
+from . import util, config
 
 ALLOWED_MODES: Set[str] = {mode.upper() for mode in config["trivia"]["allowed_modes"]}
 ALLOWED_SPELLS: List[SummonerSpell] = \

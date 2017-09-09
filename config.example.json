@@ -3,6 +3,7 @@
     "discord_token": "token",
     "owner_id": "id"
   },
+  "plugins": ["lol"],
   "plugins.lol": {
     "api_region": "NA",
     "api_key": "RGAPI-00000000-0000-0000-0000-000000000000",
@@ -14,8 +15,5 @@
       "allowed_modes": ["CLASSIC", "ARAM", "KINGPORO"],
       "allowed_maps": ["SUMMONERS_RIFT", "HOWLING_ABYSS"]
     }
-  },
-  "plugins.debug": {
-    "enabled": false
   }
 }
