@@ -91,7 +91,7 @@ class Question(object):
 
         self.active = False
         points: int = config['trivia']['points']
-        await message.channel.send_message(
+        await message.channel.send(
             f"Correct answer '{ans}'{self.extra} by {message.author.mention}! +{points} points"
             f" (new score: {(get_score(message.author.id) or 0) + points})"
         )
