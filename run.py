@@ -10,8 +10,7 @@ with open("config.json", "r") as f:
     config: dict = json.load(f)
 
 client = commands.Bot(command_prefix=commands.when_mentioned_or('!'), description="League of Legends Trivia",
-                      pm_help=True)
-client.owner_id: str = config["bot"]["owner_id"]
+                      pm_help=True, owner_id=config["bot"]["owner_id"] or None)
 
 plugins.load_plugins(client, config)
 
@@ -22,7 +21,7 @@ async def on_ready():
 
 
 @client.event
-async def on_command_error(e: BaseException, ctx: commands.Context):
+async def on_command_error(ctx: commands.Context, e: BaseException):
     if isinstance(e, (commands.BadArgument, commands.MissingRequiredArgument, commands.CommandOnCooldown)):
         # do these really warrant a traceback?
         return

@@ -22,6 +22,14 @@ SANITIZER.ignore_links = True
 SANITIZER.body_width = 0
 
 
+class SkinInfo(NamedTuple):
+    champ: Champion
+    skin: Skin
+    price: int
+    currency: str
+    date: str
+
+
 def get_champion_by_name(name: str) -> Tuple[Optional[Champion], int]:
     """Get a champion by name with fuzzy search.
     Args:
@@ -43,7 +51,7 @@ def get_item(name_or_id: Union[str, int]) -> Tuple[Optional[Item], int]:
     """
     if isinstance(name_or_id, int) or name_or_id.isdigit():
         item = riotapi.get_item(int(name_or_id))
-        return (item, 100 if item else 0)
+        return item, 100 if item else 0
     return get_by_name(name_or_id, riotapi.get_items())
 
 
@@ -61,13 +69,6 @@ def get_by_name(name: str, items: Sequence[TItem]) -> Tuple[Optional[TItem], int
     """
     res = process.extractOne(name, {item: item.name for item in items}, score_cutoff=80)
     return (res[2], res[1]) if res else (None, 0)
-
-
-class SkinInfo(NamedTuple):
-    champ: Champion
-    skin: Skin
-    price: str
-    date: str
 
 
 def get_skin_by_name(name: str) -> Tuple[Optional[SkinInfo], int]:
@@ -127,7 +128,9 @@ def _load_skins() -> Dict[str, SkinInfo]:
     for champ in riotapi.get_champions():
         for skin in champ.skins:
             name = skin.name if skin.name != "default" else f"Classic {champ.name}"
-            skins[name] = SkinInfo(champ, skin, *data.get(str(skin.id), (None, None)))
+            price, date = data.get(str(skin.id), (None, None))
+            currency = "Gemstones" if price and price == 10 else "RP"  # SEND HELP
+            skins[name] = SkinInfo(champ, skin, price, currency, date)
 
     return skins
 

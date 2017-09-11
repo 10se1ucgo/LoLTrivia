@@ -1,7 +1,7 @@
 {
   "bot":{
     "discord_token": "token",
-    "owner_id": "id"
+    "owner_id": 111111111111111111 // optional, if not given or null will be taken from API (delete this comment after)
   },
   "plugins": ["lol"],
   "plugins.lol": {
