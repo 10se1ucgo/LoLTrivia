@@ -186,7 +186,7 @@ class LoLTrivia(object):
             return await ctx.send("No match found.")
         await ctx.send(embed=self.mastery_info(mastery).set_footer(text=f"Match Score: {score}"))
 
-    def champ_info(self, champ: Champion, spell_key: str):
+    def champ_info(self, champ: Champion, spell_key: str) -> discord.Embed:
         if spell_key.lower() == "p":
             return self.passive_info(champ)
         elif spell_key.lower() in ('q', 'w', 'e', 'r'):
@@ -207,7 +207,7 @@ class LoLTrivia(object):
 
         return embed
 
-    def spell_info(self, champ: Champion, spell_key: str):
+    def spell_info(self, champ: Champion, spell_key: str) -> discord.Embed:
         spell: Spell = champ.spells["qwer".index(spell_key.lower())]
 
         champ_name_link = champ.name.replace(' ', '_')
@@ -226,7 +226,7 @@ class LoLTrivia(object):
                         inline=False)
         return embed
 
-    def passive_info(self, champ: Champion):
+    def passive_info(self, champ: Champion) -> discord.Embed:
         passive: Passive = champ.passive
 
         champ_name_link = champ.name.replace(' ', '_')
@@ -241,7 +241,7 @@ class LoLTrivia(object):
 
         return embed
 
-    def skin_info(self, info: util.SkinInfo, type: str=None):
+    def skin_info(self, info: util.SkinInfo, type: str=None) -> discord.Embed:
         champ_name_link = info.champ.name.replace(' ', '_')
         skin_name = info.skin.name if info.skin.name != "default" else f"Classic {info.champ.name}"
         embed = discord.Embed(title=f"{skin_name}", type="rich", color=discord.Color.blue(),
@@ -260,7 +260,7 @@ class LoLTrivia(object):
 
         return embed
 
-    def item_info(self, item: Item):
+    def item_info(self, item: Item) -> discord.Embed:
         embed = discord.Embed(title=f"{item.name}",
                               description=util.SANITIZER.handle(item.description),
                               url=f"http://leagueoflegends.wikia.com/wiki/{item.name.replace(' ', '_')}",
@@ -279,7 +279,7 @@ class LoLTrivia(object):
             embed.add_field(name="Builds Into", value=', '.join(x.name for x in item.component_of))
         return embed
 
-    def summ_info(self, summ: SummonerSpell):
+    def summ_info(self, summ: SummonerSpell) -> discord.Embed:
         embed = discord.Embed(title=summ.name, description=f"Available at summoner level {summ.summoner_level}",
                               url=f"http://leagueoflegends.wikia.com/wiki/{summ.name.replace(' ', '_')}",
                               type="rich", color=discord.Color.blue())
@@ -290,7 +290,7 @@ class LoLTrivia(object):
                         inline=False)
         return embed
 
-    def rune_info(self, rune: Rune):
+    def rune_info(self, rune: Rune) -> discord.Embed:
         embed = discord.Embed(title=rune.name, description=f"Tier {rune.meta_data.tier}",
                               type="rich", color=discord.Color.blue())
         embed.set_thumbnail(url=util.get_image_link(rune.image))
@@ -298,7 +298,7 @@ class LoLTrivia(object):
                         inline=False)
         return embed
 
-    def mastery_info(self, mastery: Mastery):
+    def mastery_info(self, mastery: Mastery) -> discord.Embed:
         embed = discord.Embed(title=mastery.name, description=f"{mastery.tree.value} Tree",
                               url=f"http://leagueoflegends.wikia.com/wiki/{mastery.name.replace(' ', '_')}",
                               type="rich", color=discord.Color.blue())

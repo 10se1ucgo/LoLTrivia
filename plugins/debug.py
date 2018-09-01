@@ -95,7 +95,7 @@ class BotDebug(object):
 
     async def send_split(self, ctx: commands.Context, text: str, *, prefix="```\n", postfix="\n```"):
         max_len = 2000 - (len(prefix) + len(postfix))
-        text: List[str] = [text[x:x+max_len] for x in range(0, len(text), max_len)]
+        text: List[str] = [text[x:x + max_len] for x in range(0, len(text), max_len)]
         print(text)
         for message in text:
             await ctx.send(f"{prefix}{message}{postfix}")

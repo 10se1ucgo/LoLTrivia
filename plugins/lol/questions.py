@@ -54,7 +54,6 @@ class Question(object):
         """Say the question in chat (and the embed if specified)
         
         Args:
-            client: the bot to send with.
             channel: the channel to send it to.
 
         Returns:
@@ -66,8 +65,7 @@ class Question(object):
         """Expire the question and end the game in chat.
         
         Args:
-            client: the bot to send the expire message with.
-            channel: the channel to send it to.
+            channel: the channel to send the expire message to.
 
         Returns:
             None
