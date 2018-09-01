@@ -7,8 +7,10 @@ import sys
 import textwrap
 import traceback
 from io import StringIO
-from typing import Pattern, Match, Any, Dict, Tuple
+from typing import *
+from typing import Pattern
 
+import discord
 from discord.ext import commands
 
 # i took this from somewhere and i cant remember where
@@ -21,34 +23,37 @@ class BotDebug(object):
         self.client = client
         self.last_eval = None
 
-    @commands.command(pass_context=True, hidden=True)
+    @commands.command(hidden=True)
     async def exec(self, ctx: commands.Context, *, cmd: str):
         result, stdout, stderr = await self.run(ctx, cmd, use_exec=True)
-        await self.say_output(result, stdout, stderr)
+        await self.send_output(ctx, result, stdout, stderr)
 
-    @commands.command(pass_context=True, hidden=True)
+    @commands.command(hidden=True)
     async def eval(self, ctx: commands.Context, *, cmd: str):
         scope = {"_": self.last_eval, "last": self.last_eval}
         result, stdout, stderr = await self.run(ctx, cmd, use_exec=False, extra_scope=scope)
         self.last_eval = result
-        await self.say_output(result, stdout, stderr)
+        await self.send_output(ctx, result, stdout, stderr)
 
-    async def say_output(self, result, stdout, stderr):
+    async def send_output(self, ctx: commands.Context, result: str, stdout: str, stderr: str):
+        print(result, stdout, stderr)
         if result is not None:
-            await self.client.say(f"Result: `{result}`")
+            await ctx.send(f"Result: `{result}`")
         if stdout:
             logger.info(f"exec stdout: \n{stdout}")
-            await self.client.say(f"stdout: ```\n{stdout}\n```")
+            await ctx.send("stdout:")
+            await self.send_split(ctx, stdout)
         if stderr:
             logger.error(f"exec stderr: \n{stderr}")
-            await self.client.say(f"stderr: ```fix\n{stderr}\n```")
+            await ctx.send("stderr:")
+            await self.send_split(ctx, stderr)
 
     async def run(self, ctx: commands.Context, cmd: str, use_exec: bool, extra_scope: dict=None) -> Tuple[Any, str, str]:
-        if ctx.message.author.id != self.client.owner_id:
+        if not self.client.is_owner(ctx.author):
             return None, "", ""
 
         # note: exec/eval inserts __builtins__ if a custom version is not defined (or set to {} or whatever)
-        scope: Dict[str, Any] = {'bot': self.client, 'ctx': ctx}
+        scope: Dict[str, Any] = {'bot': self.client, 'ctx': ctx, 'discord': discord}
         if extra_scope:
             scope.update(extra_scope)
 
@@ -72,12 +77,12 @@ class BotDebug(object):
             except (SystemExit, KeyboardInterrupt):
                 raise
             except Exception:
-                await self.on_error()
+                await self.on_error(ctx)
             else:
-                await self.client.add_reaction(ctx.message, '✅')
+                await ctx.message.add_reaction('✅')
         return result, stdout.getvalue(), stderr.getvalue()
 
-    async def on_error(self):
+    async def on_error(self, ctx: commands.Context):
         # prepend a "- " to each line and use ```diff``` syntax highlighting to color the error message red.
         # also strip lines 2 and 3 of the traceback which includes full path to the file, irrelevant for repl code.
         # yes i know error[:1] is basically error[0] but i want it to stay as a list
@@ -85,7 +90,15 @@ class BotDebug(object):
 
         error = traceback.format_exc().splitlines()
         error = textwrap.indent('\n'.join(error[:1] + error[3:]), '- ', lambda x: True)
-        await self.client.say(f"Traceback: ```diff\n{error}\n```")
+        await ctx.send("Traceback:")
+        await self.send_split(ctx, error, prefix="```diff\n")
+
+    async def send_split(self, ctx: commands.Context, text: str, *, prefix="```\n", postfix="\n```"):
+        max_len = 2000 - (len(prefix) + len(postfix))
+        text: List[str] = [text[x:x + max_len] for x in range(0, len(text), max_len)]
+        print(text)
+        for message in text:
+            await ctx.send(f"{prefix}{message}{postfix}")
 
 
 @contextlib.contextmanager

@@ -50,33 +50,31 @@ class Question(object):
 
         self.active: bool = True
 
-    async def say(self, client: discord.Client, channel: discord.Channel):
+    async def say(self, channel: discord.TextChannel):
         """Say the question in chat (and the embed if specified)
         
         Args:
-            client: the bot to send with.
             channel: the channel to send it to.
 
         Returns:
             None
         """
-        await client.send_message(channel, self.q.title, embed=self.q)
+        await channel.send(self.q.title, embed=self.q)
 
-    async def expire(self, client: discord.Client, channel: discord.Channel):
+    async def expire(self, channel: discord.TextChannel):
         """Expire the question and end the game in chat.
         
         Args:
-            client: the bot to send the expire message with.
-            channel: the channel to send it to.
+            channel: the channel to send the expire message to.
 
         Returns:
             None
         """
         self.active = False
         correct: str = '/'.join(random.sample(self.a, min(3, len(self.a)))) + ('/etc...' if len(self.a) > 3 else '')
-        await client.send_message(channel, f"Time's up! The correct answer was '{correct}'{self.extra}.")
+        await channel.send(f"Time's up! The correct answer was '{correct}'{self.extra}.")
 
-    async def answer(self, client: discord.Client, message: discord.Message, get_score: Callable[[str], int]) -> int:
+    async def answer(self, message: discord.Message, get_score: Callable[[str], int]) -> int:
         if not self.active: return False
 
         msg: str = self.modifier(message.content).lower()
@@ -91,9 +89,10 @@ class Question(object):
 
         self.active = False
         points: int = config['trivia']['points']
-        await client.send_message(message.channel,
-                                  f"Correct answer '{ans}'{self.extra} by {message.author.mention}! +{points} points"
-                                  f" (new score: {(get_score(message.author.id) or 0) + points})")
+        await message.channel.send(
+            f"Correct answer '{ans}'{self.extra} by {message.author.mention}! +{points} points"
+            f" (new score: {(get_score(message.author.id) or 0) + points})"
+        )
         return points
 
     def set_thumbnail(self, *args, **kwargs) -> 'Question':

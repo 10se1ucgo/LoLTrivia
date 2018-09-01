@@ -6,8 +6,7 @@ config: dict = {}
 
 
 def init(bot: commands.Bot, cfg: dict):
-    global config
-    config = cfg[__name__]
+    config.update(cfg[__name__])
 
     riotapi.set_region(config["api_region"])
     riotapi.set_api_key(config["api_key"])

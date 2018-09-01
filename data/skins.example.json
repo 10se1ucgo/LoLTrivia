@@ -1,6 +1,6 @@
 {
   "SKIN_ID": [
-    "SKIN_PRICE",
+    SKIN_PRICE, // int
     "SKIN_RELEASE_DATE"
   ],
   ...

@@ -1,13 +1,23 @@
 # Python 3 byte code stuff
 __pycache__/
 
-# PyCharm
+# IDE crap
 .idea/
+.vs/
 
-# Misc
-util/
-data/*/
+# data
+config.json
+data/*
 !data/README
 !data/quotes.example.json
 !data/skins.example.json
-config.json
+
+# plugins
+plugins/*
+!plugins/debug.py
+!plugins/__init__.py
+!plugins/lol
+
+# Misc
+cassiopeia/
+util/

@@ -17,7 +17,7 @@ from . import db, questions, util, config
 class LoLTrivia(object):
     def __init__(self, client: commands.Bot):
         self.client = client
-        self.questions: DefaultDict[discord.Channel, Dict[questions.Question, asyncio.Task]] = defaultdict(dict)
+        self.questions: DefaultDict[discord.TextChannel, Dict[questions.Question, asyncio.Task]] = defaultdict(dict)
         # self.timers: Dict[discord.Channel, float] = defaultdict(float)
         self.user_db = db.TriviaDB("data/users.db")
 
@@ -28,8 +28,8 @@ class LoLTrivia(object):
         self.force.help += '\n'.join(force_help)
         self.trivia.help = self.trivia.help.format(max=config["trivia"]["max_games"])
 
-    @commands.cooldown(rate=1, per=config["trivia"]["cd"], type=commands.BucketType.server)
-    @commands.group(pass_context=True, invoke_without_command=True)
+    @commands.cooldown(rate=1, per=config["trivia"]["cd"], type=commands.BucketType.guild)
+    @commands.group(invoke_without_command=True)
     async def trivia(self, ctx: commands.Context, num: int=1):
         """Starts a game of LoL Trivia.
         
@@ -39,13 +39,13 @@ class LoLTrivia(object):
         # self.timers[ctx.message.channel] = time.time()
         if self.questions[ctx.message.channel]: return
 
-        if discord.utils.get(ctx.message.channel.server.me.roles, name="DisableTrivia") is not None: return
+        if discord.utils.get(ctx.me.roles, name="DisableTrivia") is not None: return
 
         if not ctx.message.author.permissions_in(ctx.message.channel).manage_messages:
             num = min(num, 5)
         return await self.start_trivia(ctx, num)
 
-    @trivia.command(pass_context=True)
+    @trivia.command()
     @commands.has_permissions(manage_messages=True)
     async def force(self, ctx: commands.Context, num: int=1, force_index: int=None):
         """Force starts a game of trivia, regardless of cooldown.
@@ -54,7 +54,7 @@ class LoLTrivia(object):
         # if not ctx.message.author.permissions_in(ctx.message.channel).manage_messages: return
         return await self.start_trivia(ctx, num, force_index)
 
-    @trivia.command(pass_context=True)
+    @trivia.command()
     @commands.has_permissions(manage_messages=True)
     async def cancel(self, ctx: commands.Context):
         """Force starts a game of trivia, regardless of cooldown.
@@ -68,7 +68,7 @@ class LoLTrivia(object):
             if not q: continue
             task.cancel()
 
-    @trivia.command(pass_context=True)
+    @trivia.command()
     async def info(self, ctx: commands.Context, arg1: str, arg2: str=""):
         """Returns info on a champ/item/skin/summ/rune/mastery (best guess).
         """
@@ -104,12 +104,12 @@ class LoLTrivia(object):
             embed = self.mastery_info(info_item)
 
         if not embed:
-            return await self.client.say("No match found.")
+            return await ctx.send("No match found.")
 
         footer = f"Time elapsed: {(time.time() - start) * 1000:.0f} ms/Match Score: {score}"
-        await self.client.say(embed=embed.set_footer(text=footer))
+        await ctx.send(embed=embed.set_footer(text=footer))
 
-    @trivia.command(pass_context=True)
+    @trivia.command()
     async def champ(self, ctx: commands.Context, champ_name: str, spell_key: str= ""):
         """Returns info on a champion (title, passive, spells).
         
@@ -121,10 +121,10 @@ class LoLTrivia(object):
 
         champ, score = util.get_champion_by_name(champ_name)
         if not champ:
-            return await self.client.say("No match found.")
-        await self.client.say(embed=self.champ_info(champ, spell_key).set_footer(text=f"Match Score: {score}"))
+            return await ctx.send("No match found.")
+        await ctx.send(embed=self.champ_info(champ, spell_key).set_footer(text=f"Match Score: {score}"))
 
-    @trivia.command(pass_context=True)
+    @trivia.command()
     async def item(self, ctx: commands.Context, *, item_name_or_id: str):
         """Returns info on a item (name, stats, gold values, etc).
         """
@@ -133,10 +133,10 @@ class LoLTrivia(object):
 
         item, score = util.get_item(item_name_or_id)
         if not item:
-            return await self.client.say("No match found.")
-        await self.client.say(embed=self.item_info(item).set_footer(text=f"Match Score: {score}"))
+            return await ctx.send("No match found.")
+        await ctx.send(embed=self.item_info(item).set_footer(text=f"Match Score: {score}"))
 
-    @trivia.command(pass_context=True)
+    @trivia.command()
     async def skin(self, ctx: commands.Context, skin_name: str, type: str=""):
         """Returns info on a skin (name, price, release date, splash art)
 
@@ -147,10 +147,10 @@ class LoLTrivia(object):
 
         skin, score = util.get_skin_by_name(skin_name)
         if not skin:
-            return await self.client.say("No match found.")
-        await self.client.say(embed=self.skin_info(skin, type).set_footer(text=f"Match Score: {score}"))
+            return await ctx.send("No match found.")
+        await ctx.send(embed=self.skin_info(skin, type).set_footer(text=f"Match Score: {score}"))
 
-    @trivia.command(pass_context=True)
+    @trivia.command()
     async def summ(self, ctx: commands.Context, *, summ_name: str):
         """Returns info on a summoner spell (name, cooldown, required level, tooltip).
         """
@@ -159,10 +159,10 @@ class LoLTrivia(object):
 
         summ, score = util.get_by_name(summ_name, riotapi.get_summoner_spells())
         if not summ:
-            return await self.client.say("No match found.")
-        await self.client.say(embed=self.summ_info(summ).set_footer(text=f"Match Score: {score}"))
+            return await ctx.send("No match found.")
+        await ctx.send(embed=self.summ_info(summ).set_footer(text=f"Match Score: {score}"))
 
-    @trivia.command(pass_context=True)
+    @trivia.command()
     async def rune(self, ctx: commands.Context, *, rune_name: str):
         """Returns info on a rune (name, tier, description).
         """
@@ -171,10 +171,10 @@ class LoLTrivia(object):
 
         rune, score = util.get_by_name(rune_name, riotapi.get_runes())
         if not rune:
-            return await self.client.say("No match found.")
-        await self.client.say(embed=self.rune_info(rune).set_footer(text=f"Match Score: {score}"))
+            return await ctx.send("No match found.")
+        await ctx.send(embed=self.rune_info(rune).set_footer(text=f"Match Score: {score}"))
 
-    @trivia.command(pass_context=True)
+    @trivia.command()
     async def mastery(self, ctx: commands.Context, *, mastery_name: str):
         """Returns info on a mastery (name, tree, description).
         """
@@ -183,10 +183,10 @@ class LoLTrivia(object):
 
         mastery, score = util.get_by_name(mastery_name, riotapi.get_masteries())
         if not mastery:
-            return await self.client.say("No match found.")
-        await self.client.say(embed=self.mastery_info(mastery).set_footer(text=f"Match Score: {score}"))
+            return await ctx.send("No match found.")
+        await ctx.send(embed=self.mastery_info(mastery).set_footer(text=f"Match Score: {score}"))
 
-    def champ_info(self, champ: Champion, spell_key: str):
+    def champ_info(self, champ: Champion, spell_key: str) -> discord.Embed:
         if spell_key.lower() == "p":
             return self.passive_info(champ)
         elif spell_key.lower() in ('q', 'w', 'e', 'r'):
@@ -207,7 +207,7 @@ class LoLTrivia(object):
 
         return embed
 
-    def spell_info(self, champ: Champion, spell_key: str):
+    def spell_info(self, champ: Champion, spell_key: str) -> discord.Embed:
         spell: Spell = champ.spells["qwer".index(spell_key.lower())]
 
         champ_name_link = champ.name.replace(' ', '_')
@@ -226,7 +226,7 @@ class LoLTrivia(object):
                         inline=False)
         return embed
 
-    def passive_info(self, champ: Champion):
+    def passive_info(self, champ: Champion) -> discord.Embed:
         passive: Passive = champ.passive
 
         champ_name_link = champ.name.replace(' ', '_')
@@ -241,22 +241,26 @@ class LoLTrivia(object):
 
         return embed
 
-    def skin_info(self, info: util.SkinInfo, type: str=None):
+    def skin_info(self, info: util.SkinInfo, type: str=None) -> discord.Embed:
         champ_name_link = info.champ.name.replace(' ', '_')
         skin_name = info.skin.name if info.skin.name != "default" else f"Classic {info.champ.name}"
         embed = discord.Embed(title=f"{skin_name}", type="rich", color=discord.Color.blue(),
                               url=f"http://leagueoflegends.wikia.com/wiki/{champ_name_link}/Skins")
         embed.set_author(name=f"{info.champ.name}", icon_url=util.get_image_link(info.champ.image),
                          url=f"http://leagueoflegends.wikia.com/wiki/{champ_name_link}")
-        embed.add_field(name="Price", value="Free/Limited Edition"
-        if info.price and info.price.isdigit() and int(info.price) <= 0
-        else f"{info.price} RP")
+        if not info.price:
+            price = "Unknown"
+        elif info.price <= 0:
+            price = "Free/Limited Edition"
+        else:
+            price = f"{info.price} {info.currency}"
+        embed.add_field(name="Price", value=price)
         embed.add_field(name="Release Date", value=info.date)
         embed.set_image(url=info.skin.loading if type and type.lower() == "loading" else info.skin.splash)
 
         return embed
 
-    def item_info(self, item: Item):
+    def item_info(self, item: Item) -> discord.Embed:
         embed = discord.Embed(title=f"{item.name}",
                               description=util.SANITIZER.handle(item.description),
                               url=f"http://leagueoflegends.wikia.com/wiki/{item.name.replace(' ', '_')}",
@@ -275,7 +279,7 @@ class LoLTrivia(object):
             embed.add_field(name="Builds Into", value=', '.join(x.name for x in item.component_of))
         return embed
 
-    def summ_info(self, summ: SummonerSpell):
+    def summ_info(self, summ: SummonerSpell) -> discord.Embed:
         embed = discord.Embed(title=summ.name, description=f"Available at summoner level {summ.summoner_level}",
                               url=f"http://leagueoflegends.wikia.com/wiki/{summ.name.replace(' ', '_')}",
                               type="rich", color=discord.Color.blue())
@@ -286,7 +290,7 @@ class LoLTrivia(object):
                         inline=False)
         return embed
 
-    def rune_info(self, rune: Rune):
+    def rune_info(self, rune: Rune) -> discord.Embed:
         embed = discord.Embed(title=rune.name, description=f"Tier {rune.meta_data.tier}",
                               type="rich", color=discord.Color.blue())
         embed.set_thumbnail(url=util.get_image_link(rune.image))
@@ -294,7 +298,7 @@ class LoLTrivia(object):
                         inline=False)
         return embed
 
-    def mastery_info(self, mastery: Mastery):
+    def mastery_info(self, mastery: Mastery) -> discord.Embed:
         embed = discord.Embed(title=mastery.name, description=f"{mastery.tree.value} Tree",
                               url=f"http://leagueoflegends.wikia.com/wiki/{mastery.name.replace(' ', '_')}",
                               type="rich", color=discord.Color.blue())
@@ -304,32 +308,33 @@ class LoLTrivia(object):
         embed.add_field(name="Max Rank", value=str(mastery.max_rank), inline=False)
         return embed
 
-    @trivia.command(pass_context=True)
+    @trivia.command()
     async def score(self, ctx: commands.Context, *, user: discord.Member=None):
         """Returns the score of [user]. Defaults to you.
         """
-        points = self.user_db.get_score(ctx.message.author.id if user is None else user.id) or 0
+        points = self.user_db.get_score(user.id if user else ctx.message.author.id) or 0
         if user is None:
-            await self.client.reply(f"your score is {points} points.")
+            await ctx.send(f"{ctx.author.mention}, your score is {points} points.")
         else:
-            await self.client.say(f"{user.mention}'s score is {points} points")
+            await ctx.send(f"{user.mention}'s score is {points} points")
 
-    @trivia.command(pass_context=True)
+    @trivia.command()
     async def top(self, ctx: commands.Context):
         """Returns the top 10 scores
         """
         embed = discord.Embed(title=f"LoL Trivia Scoreboard", description="Top 10 LoL Trivia players\n\n",
                               type="rich", color=discord.Color.blue())
-        for x, (id, score) in enumerate(self.user_db.get_top(), start=1):
-            user = ctx.message.server.get_member(id)
-            name = f"{user.name}#{user.discriminator}" if user else id
+        for x, (discord_id, score, name) in enumerate(self.user_db.get_top(), start=1):
+            if not name:
+                user = ctx.guild.get_member(discord_id) or self.client.get_user(discord_id)
+                name = f"{user.name}#{user.discriminator}" if user else discord_id
             embed.add_field(name=f"{x}. {name}", value=f"{score} points")
-        await self.client.say(embed=embed)
+        await ctx.send(embed=embed)
 
     async def start_trivia(self, ctx: commands.Context, num: int=1, force_index: int=None):
         num = max(1, min(num, config["trivia"]["max_games"]))
 
-        await self.client.say(f"{ctx.message.author.mention} started a game of LoL Trivia! Get ready!")
+        await ctx.send(f"{ctx.message.author.mention} started a game of LoL Trivia! Get ready!")
 
         with self.lock_questions(ctx.message.channel):
             for x in range(num):
@@ -337,17 +342,17 @@ class LoLTrivia(object):
                     break
                 await asyncio.sleep(2)
                 q: questions.Question = questions.get_random_question(force_index)
-                await q.say(self.client, ctx.message.channel)
+                await q.say(ctx.message.channel)
                 task = asyncio.ensure_future(self.question_helper(q, ctx.message.channel))
                 self.questions[ctx.message.channel][q] = task
                 await task
 
-        await self.client.say(f"You can start a new round in {config['trivia']['cd']} seconds.")
+        await ctx.send(f"You can start a new round in {config['trivia']['cd']} seconds.")
 
-    async def question_helper(self, q: questions.Question, channel: discord.Channel):
+    async def question_helper(self, q: questions.Question, channel: discord.TextChannel):
         try:
             await asyncio.sleep(config["trivia"]["game_length"])
-            await q.expire(self.client, channel)
+            await q.expire(channel)
             self.questions[channel].pop(q, None)
         except asyncio.CancelledError:
             pass
@@ -361,9 +366,10 @@ class LoLTrivia(object):
         for q, task in list(self.questions[message.channel].items()):
             if not q: continue
 
-            points = await q.answer(self.client, message, self.user_db.get_score)
+            points = await q.answer(message, self.user_db.get_score)
             if points:
-                self.user_db.add_score(message.author.id, points)
+                user = message.author
+                self.user_db.add_score(user.id, points, f"{user.name}#{user.discriminator}")
                 task.cancel()
                 self.questions[message.channel].pop(q, None)
 
