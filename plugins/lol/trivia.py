@@ -7,11 +7,134 @@ from contextlib import contextmanager
 from typing import *
 
 import discord
-from cassiopeia import riotapi
-from cassiopeia.type.core.staticdata import *
+import cassiopeia as riotapi
+from cassiopeia.core.staticdata import *
+from cassiopeia.core.staticdata.champion import ChampionSpell, Passive
 from discord.ext import commands
 
 from . import db, questions, util, config
+from .util import find_in_data
+
+
+def spell_info(champ: Champion, spell_key: str) -> discord.Embed:
+    spell: ChampionSpell = champ.spells["qwer".index(spell_key.lower())]
+
+    champ_name_link = champ.name.replace(' ', '_')
+    url_anchored = f"{champ_name_link}#{spell.name.replace(' ', '_')}"
+    embed = discord.Embed(title=f"{spell.name} ({spell_key.upper()})",
+                          description=f"{find_in_data(spell, 'costBurn')} {{{{ resource_type }}}}",
+                          url=f"http://leagueoflegends.wikia.com/wiki/{url_anchored}",
+                          type="rich", color=discord.Color.blue())
+    embed.set_author(name=f"{champ.name}", icon_url=util.get_image_link(champ.image),
+                     url=f"http://leagueoflegends.wikia.com/wiki/{champ_name_link}")
+    embed.set_thumbnail(url=util.get_image_link(spell.image_info))
+
+    embed.add_field(name="Cooldown", value=find_in_data(spell, "cooldownBurn"))
+    embed.add_field(name="Range", value=find_in_data(spell, "rangeBurn"))
+    embed.add_field(name="Tooltip", value=util.SANITIZER.handle(util.parse_tooltip(spell, spell.tooltip)),
+                    inline=False)
+    return embed
+
+
+def passive_info(champ: Champion) -> discord.Embed:
+    passive: Passive = champ.passive
+
+    champ_name_link = champ.name.replace(' ', '_')
+    url_anchored = f"{champ_name_link}#{passive.name.replace(' ', '_')}"
+    embed = discord.Embed(title=f"{passive.name} (Passive)",
+                          description=util.SANITIZER.handle(passive.description),
+                          url=f"http://leagueoflegends.wikia.com/wiki/{url_anchored}",
+                          type="rich", color=discord.Color.blue())
+    embed.set_author(name=f"{champ.name}", icon_url=util.get_image_link(champ.image),
+                     url=f"http://leagueoflegends.wikia.com/wiki/{champ_name_link}")
+    embed.set_thumbnail(url=util.get_image_link(passive.image_info))
+
+    return embed
+
+
+def skin_info(info: util.SkinInfo, type: str=None) -> discord.Embed:
+    champ_name_link = info.champ.name.replace(' ', '_')
+    skin_name = info.skin.name if info.skin.name != "default" else f"Classic {info.champ.name}"
+    embed = discord.Embed(title=f"{skin_name}", type="rich", color=discord.Color.blue(),
+                          url=f"http://leagueoflegends.wikia.com/wiki/{champ_name_link}/Skins")
+    embed.set_author(name=f"{info.champ.name}", icon_url=util.get_image_link(info.champ.image),
+                     url=f"http://leagueoflegends.wikia.com/wiki/{champ_name_link}")
+    if not info.price:
+        price = "Unknown"
+    elif info.price <= 0:
+        price = "Free/Limited Edition"
+    else:
+        price = f"{info.price} {info.currency}"
+    embed.add_field(name="Price", value=price)
+    embed.add_field(name="Release Date", value=info.date)
+    embed.set_image(url=info.skin.loading_image_url if type and type.lower() == "loading" else info.skin.splash_url)
+
+    return embed
+
+
+def item_info(item: Item) -> discord.Embed:
+    embed = discord.Embed(title=f"{item.name}",
+                          description=util.SANITIZER.handle(item.description),
+                          url=f"http://leagueoflegends.wikia.com/wiki/{item.name.replace(' ', '_')}",
+                          type="rich", color=discord.Color.blue())
+    embed.set_thumbnail(url=util.get_image_link(item.image))
+
+    if item.gold.total != 0:
+        embed.add_field(name="Gold (Buy)", value=f"{item.gold.total}g")
+        embed.add_field(name="Gold (Sell)", value=f"{item.gold.sell}g")
+    if item.gold.total != item.gold.base:
+        embed.add_field(name="Gold (Recipe)", value=f"{item.gold.base}g")
+    # embed.add_field(name="Purchasable?", value="Yes" if item.gold.purchasable else "No")
+    if item.builds_from:
+        embed.add_field(name="Builds From", value=', '.join(x.name for x in item.builds_from))
+    if item.builds_into:
+        embed.add_field(name="Builds Into", value=', '.join(x.name for x in item.builds_into))
+    return embed
+
+
+def summ_info(summ: SummonerSpell) -> discord.Embed:
+    embed = discord.Embed(title=summ.name, description=f"Available at summoner level {find_in_data(summ, 'summonerLevel')}",
+                          url=f"http://leagueoflegends.wikia.com/wiki/{summ.name.replace(' ', '_')}",
+                          type="rich", color=discord.Color.blue())
+    embed.set_thumbnail(url=util.get_image_link(summ.image))
+    embed.add_field(name="Cooldown", value=find_in_data(summ, "cooldownBurn"))
+    embed.add_field(name="Range", value=find_in_data(summ, "rangeBurn"))
+    embed.add_field(name="Tooltip", value=util.SANITIZER.handle(util.parse_tooltip(summ, summ.tooltip)),
+                    inline=False)
+    return embed
+
+
+def rune_info(rune: Rune) -> discord.Embed:
+    embed = discord.Embed(title=rune.name,
+                          description=f"{rune.path.value}: {util.RUNE_TIER_NAMES[rune.path][rune.tier]}",
+                          url=f"http://leagueoflegends.wikia.com/wiki/{rune.name.replace(' ', '_')}",
+                          type="rich", color=discord.Color.blue())
+    embed.set_thumbnail(url=rune.image.url)
+    embed.add_field(name="Description", value=util.SANITIZER.handle(rune.long_description),
+                    inline=False)
+    return embed
+
+
+def champ_info(champ: Champion, spell_key: str) -> discord.Embed:
+    if spell_key.lower() == "p":
+        return passive_info(champ)
+    elif spell_key.lower() in ('q', 'w', 'e', 'r'):
+        return spell_info(champ, spell_key=spell_key)
+
+    passive: Passive = champ.passive
+
+    embed = discord.Embed(title=f"{champ.name}, {champ.title}", description='/'.join(champ.tags),
+                          url=f"http://leagueoflegends.wikia.com/wiki/{champ.name.replace(' ', '_')}",
+                          type="rich", color=discord.Color.blue())
+    embed.set_thumbnail(url=util.get_image_link(champ.image))
+
+    embed.add_field(name=f"Passive - {passive.name}",
+                    value=textwrap.shorten(passive.sanitized_description, 125, placeholder="..."), inline=False)
+    for x, spell in enumerate(champ.spells):
+        embed.add_field(name=f"{'QWER'[x]} - {spell.name}",
+                        value=textwrap.shorten(spell.sanitized_description, 125, placeholder="..."))
+
+    return embed
 
 
 class LoLTrivia(object):
@@ -85,23 +208,20 @@ class LoLTrivia(object):
             util.get_skin_by_name(arg1),
             util.get_by_name(arg1, riotapi.get_summoner_spells()),
             util.get_by_name(arg1, riotapi.get_runes()),
-            util.get_by_name(arg1, riotapi.get_masteries())
         ]
 
         info_item, score = max(items, key=operator.itemgetter(1))
 
         if isinstance(info_item, Champion):
-            embed = self.champ_info(info_item, arg2)
+            embed = champ_info(info_item, arg2)
         elif isinstance(info_item, Item):
-            embed = self.item_info(info_item)
+            embed = item_info(info_item)
         elif isinstance(info_item, util.SkinInfo):
-            embed = self.skin_info(info_item, arg2)
+            embed = skin_info(info_item, arg2)
         elif isinstance(info_item, SummonerSpell):
-            embed = self.summ_info(info_item)
+            embed = summ_info(info_item)
         elif isinstance(info_item, Rune):
-            embed = self.rune_info(info_item)
-        elif isinstance(info_item, Mastery):
-            embed = self.mastery_info(info_item)
+            embed = rune_info(info_item)
 
         if not embed:
             return await ctx.send("No match found.")
@@ -122,7 +242,7 @@ class LoLTrivia(object):
         champ, score = util.get_champion_by_name(champ_name)
         if not champ:
             return await ctx.send("No match found.")
-        await ctx.send(embed=self.champ_info(champ, spell_key).set_footer(text=f"Match Score: {score}"))
+        await ctx.send(embed=champ_info(champ, spell_key).set_footer(text=f"Match Score: {score}"))
 
     @trivia.command()
     async def item(self, ctx: commands.Context, *, item_name_or_id: str):
@@ -134,7 +254,7 @@ class LoLTrivia(object):
         item, score = util.get_item(item_name_or_id)
         if not item:
             return await ctx.send("No match found.")
-        await ctx.send(embed=self.item_info(item).set_footer(text=f"Match Score: {score}"))
+        await ctx.send(embed=item_info(item).set_footer(text=f"Match Score: {score}"))
 
     @trivia.command()
     async def skin(self, ctx: commands.Context, skin_name: str, type: str=""):
@@ -148,7 +268,7 @@ class LoLTrivia(object):
         skin, score = util.get_skin_by_name(skin_name)
         if not skin:
             return await ctx.send("No match found.")
-        await ctx.send(embed=self.skin_info(skin, type).set_footer(text=f"Match Score: {score}"))
+        await ctx.send(embed=skin_info(skin, type).set_footer(text=f"Match Score: {score}"))
 
     @trivia.command()
     async def summ(self, ctx: commands.Context, *, summ_name: str):
@@ -160,7 +280,7 @@ class LoLTrivia(object):
         summ, score = util.get_by_name(summ_name, riotapi.get_summoner_spells())
         if not summ:
             return await ctx.send("No match found.")
-        await ctx.send(embed=self.summ_info(summ).set_footer(text=f"Match Score: {score}"))
+        await ctx.send(embed=summ_info(summ).set_footer(text=f"Match Score: {score}"))
 
     @trivia.command()
     async def rune(self, ctx: commands.Context, *, rune_name: str):
@@ -172,141 +292,19 @@ class LoLTrivia(object):
         rune, score = util.get_by_name(rune_name, riotapi.get_runes())
         if not rune:
             return await ctx.send("No match found.")
-        await ctx.send(embed=self.rune_info(rune).set_footer(text=f"Match Score: {score}"))
+        await ctx.send(embed=rune_info(rune).set_footer(text=f"Match Score: {score}"))
 
-    @trivia.command()
-    async def mastery(self, ctx: commands.Context, *, mastery_name: str):
-        """Returns info on a mastery (name, tree, description).
-        """
-        if self.questions[ctx.message.channel]:
-            return
-
-        mastery, score = util.get_by_name(mastery_name, riotapi.get_masteries())
-        if not mastery:
-            return await ctx.send("No match found.")
-        await ctx.send(embed=self.mastery_info(mastery).set_footer(text=f"Match Score: {score}"))
-
-    def champ_info(self, champ: Champion, spell_key: str) -> discord.Embed:
-        if spell_key.lower() == "p":
-            return self.passive_info(champ)
-        elif spell_key.lower() in ('q', 'w', 'e', 'r'):
-            return self.spell_info(champ, spell_key=spell_key)
-
-        passive: Passive = champ.passive
-
-        embed = discord.Embed(title=f"{champ.name}, {champ.title}", description='/'.join(champ.tags),
-                              url=f"http://leagueoflegends.wikia.com/wiki/{champ.name.replace(' ', '_')}",
-                              type="rich", color=discord.Color.blue())
-        embed.set_thumbnail(url=util.get_image_link(champ.image))
-
-        embed.add_field(name=f"Passive - {passive.name}",
-                        value=textwrap.shorten(passive.sanitized_description, 125, placeholder="..."), inline=False)
-        for x, spell in enumerate(champ.spells):
-            embed.add_field(name=f"{'QWER'[x]} - {spell.name}",
-                            value=textwrap.shorten(spell.sanitized_description, 125, placeholder="..."))
-
-        return embed
-
-    def spell_info(self, champ: Champion, spell_key: str) -> discord.Embed:
-        spell: Spell = champ.spells["qwer".index(spell_key.lower())]
-
-        champ_name_link = champ.name.replace(' ', '_')
-        url_anchored = f"{champ_name_link}#{spell.name.replace(' ', '_')}"
-        embed = discord.Embed(title=f"{spell.name} ({spell_key.upper()})",
-                              description=util.parse_tooltip(spell, spell.resource),
-                              url=f"http://leagueoflegends.wikia.com/wiki/{url_anchored}",
-                              type="rich", color=discord.Color.blue())
-        embed.set_author(name=f"{champ.name}", icon_url=util.get_image_link(champ.image),
-                         url=f"http://leagueoflegends.wikia.com/wiki/{champ_name_link}")
-        embed.set_thumbnail(url=util.get_image_link(spell.image))
-
-        embed.add_field(name="Cooldown", value=spell.cooldown_burn)
-        embed.add_field(name="Range", value=spell.range_burn)
-        embed.add_field(name="Tooltip", value=util.parse_tooltip(spell, util.SANITIZER.handle(spell.tooltip)),
-                        inline=False)
-        return embed
-
-    def passive_info(self, champ: Champion) -> discord.Embed:
-        passive: Passive = champ.passive
-
-        champ_name_link = champ.name.replace(' ', '_')
-        url_anchored = f"{champ_name_link}#{passive.name.replace(' ', '_')}"
-        embed = discord.Embed(title=f"{passive.name} (Passive)",
-                              description=util.SANITIZER.handle(passive.description),
-                              url=f"http://leagueoflegends.wikia.com/wiki/{url_anchored}",
-                              type="rich", color=discord.Color.blue())
-        embed.set_author(name=f"{champ.name}", icon_url=util.get_image_link(champ.image),
-                         url=f"http://leagueoflegends.wikia.com/wiki/{champ_name_link}")
-        embed.set_thumbnail(url=util.get_image_link(passive.image))
-
-        return embed
-
-    def skin_info(self, info: util.SkinInfo, type: str=None) -> discord.Embed:
-        champ_name_link = info.champ.name.replace(' ', '_')
-        skin_name = info.skin.name if info.skin.name != "default" else f"Classic {info.champ.name}"
-        embed = discord.Embed(title=f"{skin_name}", type="rich", color=discord.Color.blue(),
-                              url=f"http://leagueoflegends.wikia.com/wiki/{champ_name_link}/Skins")
-        embed.set_author(name=f"{info.champ.name}", icon_url=util.get_image_link(info.champ.image),
-                         url=f"http://leagueoflegends.wikia.com/wiki/{champ_name_link}")
-        if not info.price:
-            price = "Unknown"
-        elif info.price <= 0:
-            price = "Free/Limited Edition"
-        else:
-            price = f"{info.price} {info.currency}"
-        embed.add_field(name="Price", value=price)
-        embed.add_field(name="Release Date", value=info.date)
-        embed.set_image(url=info.skin.loading if type and type.lower() == "loading" else info.skin.splash)
-
-        return embed
-
-    def item_info(self, item: Item) -> discord.Embed:
-        embed = discord.Embed(title=f"{item.name}",
-                              description=util.SANITIZER.handle(item.description),
-                              url=f"http://leagueoflegends.wikia.com/wiki/{item.name.replace(' ', '_')}",
-                              type="rich", color=discord.Color.blue())
-        embed.set_thumbnail(url=util.get_image_link(item.image))
-
-        if item.gold.total != 0:
-            embed.add_field(name="Gold (Buy)", value=f"{item.gold.total}g")
-            embed.add_field(name="Gold (Sell)", value=f"{item.gold.sell}g")
-        if item.gold.total != item.gold.base:
-            embed.add_field(name="Gold (Recipe)", value=f"{item.gold.base}g")
-        embed.add_field(name="Purchasable?", value="Yes" if item.gold.purchasable else "No")
-        if item.components:
-            embed.add_field(name="Builds From", value=', '.join(x.name for x in item.components))
-        if item.component_of:
-            embed.add_field(name="Builds Into", value=', '.join(x.name for x in item.component_of))
-        return embed
-
-    def summ_info(self, summ: SummonerSpell) -> discord.Embed:
-        embed = discord.Embed(title=summ.name, description=f"Available at summoner level {summ.summoner_level}",
-                              url=f"http://leagueoflegends.wikia.com/wiki/{summ.name.replace(' ', '_')}",
-                              type="rich", color=discord.Color.blue())
-        embed.set_thumbnail(url=util.get_image_link(summ.image))
-        embed.add_field(name="Cooldown", value=summ.cooldown_burn)
-        embed.add_field(name="Range", value=summ.range_burn)
-        embed.add_field(name="Tooltip", value=util.parse_tooltip(summ, util.SANITIZER.handle(summ.tooltip)),
-                        inline=False)
-        return embed
-
-    def rune_info(self, rune: Rune) -> discord.Embed:
-        embed = discord.Embed(title=rune.name, description=f"Tier {rune.meta_data.tier}",
-                              type="rich", color=discord.Color.blue())
-        embed.set_thumbnail(url=util.get_image_link(rune.image))
-        embed.add_field(name="Description", value=util.SANITIZER.handle(rune.description),
-                        inline=False)
-        return embed
-
-    def mastery_info(self, mastery: Mastery) -> discord.Embed:
-        embed = discord.Embed(title=mastery.name, description=f"{mastery.tree.value} Tree",
-                              url=f"http://leagueoflegends.wikia.com/wiki/{mastery.name.replace(' ', '_')}",
-                              type="rich", color=discord.Color.blue())
-        embed.set_thumbnail(url=util.get_image_link(mastery.image))
-        embed.add_field(name="Description (at max rank)", value=util.SANITIZER.handle(mastery.descriptions[-1]),
-                        inline=False)
-        embed.add_field(name="Max Rank", value=str(mastery.max_rank), inline=False)
-        return embed
+    # @trivia.command()
+    # async def mastery(self, ctx: commands.Context, *, mastery_name: str):
+    #     """Returns info on a mastery (name, tree, description).
+    #     """
+    #     if self.questions[ctx.message.channel]:
+    #         return
+    #
+    #     mastery, score = util.get_by_name(mastery_name, riotapi.get_masteries())
+    #     if not mastery:
+    #         return await ctx.send("No match found.")
+    #     await ctx.send(embed=self.mastery_info(mastery).set_footer(text=f"Match Score: {score}"))
 
     @trivia.command()
     async def score(self, ctx: commands.Context, *, user: discord.Member=None):
@@ -342,7 +340,10 @@ class LoLTrivia(object):
                     break
                 await asyncio.sleep(2)
                 q: questions.Question = questions.get_random_question(force_index)
-                await q.say(ctx.message.channel)
+                try:
+                    await q.say(ctx.message.channel)
+                except:
+                    pass
                 task = asyncio.ensure_future(self.question_helper(q, ctx.message.channel))
                 self.questions[ctx.message.channel][q] = task
                 await task
@@ -374,7 +375,7 @@ class LoLTrivia(object):
                 self.questions[message.channel].pop(q, None)
 
     async def on_ready(self):
-        await self.client.change_presence(game=discord.Game(name="Use !trivia to play."))
+        await self.client.change_presence(activity=discord.Game(name="Use !trivia to play."))
 
     @contextmanager
     def lock_questions(self, channel):

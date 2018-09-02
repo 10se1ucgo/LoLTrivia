@@ -3,8 +3,11 @@ import json
 from typing import *
 
 import html2text
-from cassiopeia import riotapi
-from cassiopeia.type.core.staticdata import *
+import cassiopeia as riotapi
+from cassiopeia.core.staticdata import *
+from cassiopeia.core.staticdata.champion import ChampionSpell, Skin
+from cassiopeia.core.staticdata.common import Image
+from cassiopeia.core.staticdata.rune import RunePath
 from fuzzywuzzy import process
 
 DDRAGON_BASE = f"http://ddragon.leagueoflegends.com/cdn/{riotapi.get_versions()[0]}"
@@ -21,6 +24,14 @@ SANITIZER = html2text.HTML2Text()
 SANITIZER.ignore_links = True
 SANITIZER.body_width = 0
 
+RUNE_TIER_NAMES = {
+    RunePath.precision: ["Keystone", "Heroism", "Legend", "Combat"],
+    RunePath.domination: ["Keystone", "Malice", "Tracking", "Hunter"],
+    RunePath.sorcery: ["Keystone", "Artifact", "Excellence", "Power"],
+    RunePath.resolve: ["Keystone", "Strength", "Resistance", "Vitality"],
+    RunePath.inspiration: ["Keystone", "Contraption", "Tomorrow", "Beyond"]
+}
+
 
 class SkinInfo(NamedTuple):
     champ: Champion
@@ -28,6 +39,15 @@ class SkinInfo(NamedTuple):
     price: int
     currency: str
     date: str
+
+
+# A lot of cass static data missing fields and bugs :(
+def find_in_data(obj, name):
+    for dto in obj._data.values():
+        try:
+            return getattr(dto, name)
+        except AttributeError:
+            continue
 
 
 def get_champion_by_name(name: str) -> Tuple[Optional[Champion], int]:
@@ -49,10 +69,12 @@ def get_item(name_or_id: Union[str, int]) -> Tuple[Optional[Item], int]:
     Returns:
         Tuple[Optional[Item], int]: Second element represents the query score (how close it is to the actual value).
     """
-    if isinstance(name_or_id, int) or name_or_id.isdigit():
-        item = riotapi.get_item(int(name_or_id))
+    items = riotapi.get_items()
+    try:
+        item = items[int(name_or_id)]
         return item, 100 if item else 0
-    return get_by_name(name_or_id, riotapi.get_items())
+    except (TypeError, KeyError, ValueError):
+        return get_by_name(name_or_id, items)
 
 
 TItem = TypeVar('TItem')
@@ -79,24 +101,42 @@ def get_skin_by_name(name: str) -> Tuple[Optional[SkinInfo], int]:
     Returns:
         Tuple[Optional[SkinInfo], bool]: Second element represents the query score (how close it is to the actual value).
     """
-    res = process.extractOne(name, {v: k for k, v in SKINS.items()}, score_cutoff=80)
+    res = process.extractOne(name, REVERSE_MAP_SKINS, score_cutoff=80)
     return (res[2], res[1]) if res else (None, 0)
 
 
 def get_image_link(image: Image) -> str:
-    return f"{DDRAGON_BASE}/img/{image.group}/{image.link}"
+    return f"{DDRAGON_BASE}/img/{image.group}/{image.full}"
 
 
-def parse_tooltip(spell: Union[Spell, SummonerSpell], tooltip: str) -> str:
+def parse_tooltip(spell: Union[ChampionSpell, SummonerSpell], tooltip: str) -> str:
     """
     Improved tooltip parser based on the built-in Cassiopeia `Spell.__replace_variables`
     """
-    tooltip = tooltip.replace("{{ cost }}", spell.cost_burn)
 
-    for x, effect in enumerate(spell.effect_burn):
+    for dto in spell._data.values():
+        try:
+            costs_burn = dto.costBurn
+            effects_burn = dto.effectBurn
+            break
+        except AttributeError:
+            pass
+    else:
+        costs_burn = effects_burn = "?"
+
+    tooltip = tooltip.replace("{{ cost }}", costs_burn)
+
+    for x, effect in enumerate(effects_burn):
         tooltip = tooltip.replace(f"{{{{ e{x} }}}}", effect)
 
-    for var in spell.variables:
+    try:
+        variables = spell.variables
+    except:
+        # Bug in SummonerSpell.variables throws exception
+        # TODO: submit patch
+        variables = []
+
+    for var in variables:
         if var.link in SPELL_SCALINGS:
             vals = '/'.join(f'{coeff * 100:g}' for coeff in var.coefficients)
             replacement = f"{vals}% {SPELL_SCALINGS[var.link]}"
@@ -141,4 +181,5 @@ def _load_quotes() -> Dict[str, List[str]]:
 
 
 SKINS: Dict[str, SkinInfo] = _load_skins()
+REVERSE_MAP_SKINS = {v: k for k, v in SKINS.items()}
 QUOTES: Dict[str, List[str]] = _load_quotes()

@@ -3,24 +3,28 @@ from collections import Counter
 from typing import *
 
 import discord
-from cassiopeia import riotapi
-from cassiopeia.type.core.common import Map
-from cassiopeia.type.core.staticdata import *
+import cassiopeia as riotapi
+# from cassiopeia.core.common import Map
+from cassiopeia.core.staticdata import *
+from cassiopeia.core.staticdata.champion import ChampionSpell, Skin
 from fuzzywuzzy import fuzz
 
 from . import util, config
 
 ALLOWED_MODES: Set[str] = {mode.upper() for mode in config["trivia"]["allowed_modes"]}
 ALLOWED_SPELLS: List[SummonerSpell] = \
-    [spell for spell in riotapi.get_summoner_spells() if not ALLOWED_MODES.isdisjoint(spell.data.modes)]
+    [spell for spell in riotapi.get_summoner_spells() if not ALLOWED_MODES.isdisjoint(util.find_in_data(spell, "modes"))]
 
-ALLOWED_MAPS: Set[str] = \
-    {str(Map[map.lower()].value) if not map.isdigit() else map for map in config["trivia"]["allowed_maps"]}
+# ALLOWED_MAPS: Set[str] = \
+#     {str(Map[map.lower()].value) if not map.isdigit() else map for map in config["trivia"]["allowed_maps"]}
+ALLOWED_MAPS: Set[int] = \
+    {int(riotapi.get_maps()[map].id) if not map.isdigit() else int(map) for map in config["trivia"]["allowed_maps"]}
 
+print(ALLOWED_MAPS)
 ALLOWED_ITEMS: List[Item] = []
 for item in riotapi.get_items():
-    allowed_maps = {map for map, allowed in item.data.maps.items() if allowed}
-    if not ALLOWED_MAPS.isdisjoint(allowed_maps):
+    # print(list(map.id for map in item.maps))
+    if not ALLOWED_MAPS.isdisjoint(int(map.id) for map in item.maps):
         ALLOWED_ITEMS.append(item)
 
 PERCENT_STATS: List[str] = ["percent", "spell_vamp", "life_steal", "tenacity", "critical", "attack_speed", "cooldown"]
@@ -122,30 +126,28 @@ def censor_name(text: str, *args: str, replacement: str="XXXXXXX") -> str:
 # the probability of getting certain question types.
 def champ_from_spell() -> Question:
     champ: Champion = random.choice(riotapi.get_champions())
-    index: int = random.randrange(len(champ.spells))
-    spell: Spell = champ.spells[index]
+    spell: ChampionSpell = random.choice(champ.spells)
 
     return Question(f"Which champion has an ability called '{spell.name}'?", None, champ.name,
-                    extra=f" ({'QWER'[index]})")
+                    extra=f" ({spell.keyboard_key.name})")
 
 
 def spell_from_champ() -> Question:
     champ: Champion = random.choice(riotapi.get_champions())
-    index: int = random.randrange(len(champ.spells))
-    spell: Spell = champ.spells[index]
+    spell: ChampionSpell = random.choice(champ.spells)
 
-    return Question(f"What's the name of {champ.name}'s {'QWER'[index]}?", None, spell.name).\
-        set_thumbnail(url=util.get_image_link(spell.image))
+    return Question(f"What's the name of {champ.name}'s {spell.keyboard_key.name}?", None, spell.name)\
+        .set_thumbnail(url=util.get_image_link(spell.image_info))
 
 
 def spell_from_desc() -> Question:
     champ: Champion = random.choice(riotapi.get_champions())
-    index: int = random.randrange(len(champ.spells))
-    spell: Spell = champ.spells[index]
+    spell: ChampionSpell = random.choice(champ.spells)
     desc: str = censor_name(util.SANITIZER.handle(spell.description), champ.name, spell.name)
 
-    return Question("What's the name of this spell?", desc, spell.name, extra=f" ({champ.name} {'QWER'[index]})").\
-        set_thumbnail(url=util.get_image_link(spell.image))
+    return Question("What's the name of this spell?", desc, spell.name,
+                    extra=f" ({champ.name} {spell.keyboard_key.name})") \
+        .set_thumbnail(url=util.get_image_link(spell.image_info))
 
 
 def champ_from_title() -> Question:
@@ -158,11 +160,10 @@ def title_from_champ() -> Question:
     champ: Champion = random.choice(riotapi.get_champions())
 
     def remove_the(text: str) -> str:
-        text = text.lower()
-        return text[3:].strip() if text.startswith("the") else text
+        return text[3:].strip() if text.lower().startswith("the") else text
 
-    return Question(f"What is {champ.name}'s title?", None, champ.title, modifier=remove_the).\
-        set_thumbnail(url=util.get_image_link(champ.image))
+    return Question(f"What is {champ.name}'s title?", None, champ.title, modifier=remove_the)\
+        .set_thumbnail(url=util.get_image_link(champ.image))
 
 
 def champ_from_lore() -> Question:
@@ -191,12 +192,12 @@ def champ_from_splash() -> Question:
     # skins[0] is the classic skin
     skin: Skin = random.choice(champ.skins[1:])
 
-    return Question("Which skin is this?", None, skin.name).set_image(url=skin.loading)
+    return Question("Which skin is this?", None, skin.name).set_image(url=skin.loading_image_url)
 
 
 def champ_from_passive() -> Question:
     champ: Champion = random.choice(riotapi.get_champions())
-    desc: str = censor_name(champ.passive.sanitized_description, champ.name)
+    desc: str = util.SANITIZER.handle(censor_name(champ.passive.description, champ.name))
 
     return Question("Which champion's passive is this?", desc, champ.name)
 
@@ -205,20 +206,20 @@ def passive_from_champ() -> Question:
     champ: Champion = random.choice(riotapi.get_champions())
 
     return Question(f"What is the name of {champ.name}'s passive?", None, champ.passive.name).\
-        set_thumbnail(url=util.get_image_link(champ.passive.image))
+        set_thumbnail(url=util.get_image_link(champ.passive.image_info))
 
 
 def summ_from_tooltip() -> Question:
     spell: SummonerSpell = random.choice(ALLOWED_SPELLS)
-    desc: str = censor_name(util.parse_tooltip(spell, util.SANITIZER.handle(spell.tooltip)), spell.name)
+    desc: str = util.SANITIZER.handle(censor_name(util.parse_tooltip(spell, spell.tooltip), spell.name))
 
     return Question("Which summoner spell is this?", desc, spell.name)
 
 
-def summ_cd() -> Question:
+def cd_from_summ() -> Question:
     spell: SummonerSpell = random.choice(ALLOWED_SPELLS)
 
-    return Question(f"What's the base cool down of '{spell.name}'?", None, spell.cooldown_burn, fuzzywuzzy=False).\
+    return Question(f"What's the base cool down of '{spell.name}'?", None, str(spell.cooldowns[0]), fuzzywuzzy=False).\
         set_thumbnail(url=util.get_image_link(spell.image))
 
 
@@ -232,63 +233,66 @@ def item_buy_gold() -> Question:
 def item_text() -> Question:
     item: Item = random.choice(ALLOWED_ITEMS)
 
-    return Question("Which item is this?", util.SANITIZER.handle(item.blurb), item.name).\
+    return Question("Which item is this?", util.SANITIZER.handle(item.plaintext), item.name).\
         add_field(name="Stats", value=censor_name(util.SANITIZER.handle(item.description), item.name))
 
 
-def item_stat() -> Question:
-    item: Item = random.choice([item for item in ALLOWED_ITEMS if getattr(item, 'stats')])
-    stats: List[str] = [stat for stat in item.stats._ItemStats__stats if getattr(item.stats, stat, 0.0) != 0.0]
-    if not stats:
-        return item_stat()
+# TODO: Update for new Cass!
+# TODO: Implement regex stat parsing into new Cass!
+# def item_stat() -> Question:
+#     item: Item = random.choice([item for item in ALLOWED_ITEMS if getattr(item, 'stats')])
+#     stats: List[str] = [stat for stat in item.stats._ItemStats__stats if getattr(item.stats, stat, 0.0) != 0.0]
+#     if not stats:
+#         return item_stat()
+#
+#     stat: str = random.choice(stats)
+#     val: Union[int, float] = getattr(item.stats, stat)
+#     p_stat = False
+#     if any(x in stat for x in PERCENT_STATS):
+#         p_stat = True
+#         val *= 100
+#
+#     return Question(f"How much **{stat.replace('_', ' ').replace('percent', '%')}** does '{item.name}' give?", None,
+#                     f"{val:.0f}{'%' if p_stat else ''}", modifier=lambda ans: ans.strip('%')).\
+#         set_thumbnail(url=util.get_image_link(item.image))
 
-    stat: str = random.choice(stats)
-    val: Union[int, float] = getattr(item.stats, stat)
-    p_stat = False
-    if any(x in stat for x in PERCENT_STATS):
-        p_stat = True
-        val *= 100
 
-    return Question(f"How much **{stat.replace('_', ' ').replace('percent', '%')}** does '{item.name}' give?", None,
-                    f"{val:.0f}{'%' if p_stat else ''}", modifier=lambda ans: ans.strip('%')).\
-        set_thumbnail(url=util.get_image_link(item.image))
+def items_from_component() -> Question:
+    item: Item = random.choice([item for item in ALLOWED_ITEMS if item.builds_into])
 
-
-def item_from_component() -> Question:
-    item: Item = random.choice([item for item in ALLOWED_ITEMS if item.component_of])
-
-    return Question("What is one item this builds into?", item.name, {c.name for c in item.component_of}).\
+    return Question("What is one item this builds into?", item.name, {c.name for c in item.builds_into}).\
         set_thumbnail(url=util.get_image_link(item.image))
 
 
 def item_from_components() -> Question:
-    items: List[Item] = [item for item in ALLOWED_ITEMS if len(item.components) > 1]
+    items: List[Item] = [item for item in ALLOWED_ITEMS if len(item.builds_from) > 1]
 
-    components: Counter[Item] = Counter(random.choice(items).components)
-    components_str: str = '\n'.join([f"- {item} x {number}" for item, number in components.items()])
+    components: Counter[Item] = Counter(random.choice(items).builds_from)
+    components_str: str = '\n'.join([f"- {item.name} x {number}" for item, number in components.items()])
 
-    correct_items: Set[str] = {item.name for item in items if Counter(item.components) == components}
+    correct_items: Set[str] = {item.name for item in items if Counter(item.builds_from) == components}
 
     return Question("What is one item that builds from these items?", components_str, correct_items)
 
 
-def mastery_from_desc() -> Question:
-    mastery: Mastery = random.choice(riotapi.get_masteries())
-    desc: str = censor_name(util.SANITIZER.handle(mastery.descriptions[-1]), *mastery.name.split())
+def rune_from_desc() -> Question:
+    rune: Rune = random.choice(riotapi.get_runes())
+    desc: str = censor_name(util.SANITIZER.handle(rune.long_description), *rune.name.split())
 
-    return Question("What's the name of this mastery?", desc, mastery.name, extra=f" ({mastery.tree.value} Tree)")
+    return Question("What's the name of this rune?", desc, rune.name, extra=f" ({rune.path.value} Tree)")
 
 
-def tree_from_mastery() -> Question:
-    mastery: Mastery = random.choice(riotapi.get_masteries())
+def tree_from_rune() -> Question:
+    rune: Rune = random.choice(riotapi.get_runes())
 
-    return Question(f"What tree is {mastery.name} from?", None, mastery.tree.value)
+    return Question(f"What tree is {rune.name} from?", None, rune.path.value)
 
 
 def get_random_question(force_index: int=None) -> Question:
     if force_index is not None and (0 <= force_index < len(_questions)):
         return _questions[force_index]()
     return random.choice(_questions)()
+
 
 _questions: Tuple[Callable[[], Question]] = (
     champ_from_spell,
@@ -303,12 +307,12 @@ _questions: Tuple[Callable[[], Question]] = (
     champ_from_passive,
     passive_from_champ,
     summ_from_tooltip,
-    summ_cd,
+    cd_from_summ,
     item_buy_gold,
     item_text,
-    item_stat,
-    item_from_component,
+    # item_stat,
+    items_from_component,
     item_from_components,
-    mastery_from_desc,
-    tree_from_mastery
+    rune_from_desc,
+    tree_from_rune
 )

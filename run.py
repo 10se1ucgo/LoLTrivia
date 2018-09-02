@@ -10,7 +10,7 @@ with open("config.json", "r") as f:
     config: dict = json.load(f)
 
 client = commands.Bot(command_prefix=commands.when_mentioned_or('!'), description="League of Legends Trivia",
-                      pm_help=True, owner_id=config["bot"]["owner_id"] or None)
+                      pm_help=False, owner_id=config["bot"]["owner_id"] or None)
 
 plugins.load_plugins(client, config)
 

@@ -12,8 +12,8 @@
       "max_games": 15,
       "game_length": 15,
       "points": 15,
-      "allowed_modes": ["CLASSIC", "ARAM", "KINGPORO"],
-      "allowed_maps": ["SUMMONERS_RIFT", "HOWLING_ABYSS"]
+      "allowed_modes": ["CLASSIC", "ARAM", "KINGPORO", "GAMEMODEX"],
+      "allowed_maps": ["Summoner's Rift", "Howling Abyss", "Nexus Blitz", "The Twisted Treeline"]
     }
   }
 }
